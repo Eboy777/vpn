@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         request_id = _request_id(request.headers.get("x-request-id"))
+        request.state.request_id = request_id
         started = time.perf_counter()
         try:
             response = await call_next(request)

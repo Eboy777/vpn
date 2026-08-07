@@ -333,6 +333,20 @@ class TelegramUpdateEvent(Base):
     result_code: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
+class RateLimitCounter(Base):
+    __tablename__ = "rate_limit_counters"
+    __table_args__ = (
+        CheckConstraint("octet_length(subject_hash) = 32", name="subject_hash_length"),
+        CheckConstraint("request_count > 0", name="request_count_positive"),
+        Index("ix_rate_limit_counters_window", "window_start"),
+    )
+
+    scope: Mapped[str] = mapped_column(String(64), primary_key=True)
+    subject_hash: Mapped[bytes] = mapped_column(LargeBinary, primary_key=True)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class OutboxEvent(Base):
     __tablename__ = "outbox_events"
     __table_args__ = (

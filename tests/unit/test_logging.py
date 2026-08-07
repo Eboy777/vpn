@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 
-from vpn_service.logging import JsonFormatter, RedactingFilter, sanitize_path
+from vpn_service.logging import JsonFormatter, RedactingFilter, redact, sanitize_path
 
 
 def test_recursive_redaction_removes_sensitive_values() -> None:
@@ -39,3 +39,12 @@ def test_webhook_secret_is_removed_from_logged_path() -> None:
 
     assert sanitized == "/integrations/telegram/webhook/[REDACTED]"
     assert "super-secret" not in sanitized
+
+
+def test_telegram_start_token_is_removed_from_urls() -> None:
+    value = "https://t.me/example_vpn_bot?start=visible-start-token"
+
+    sanitized = redact(value)
+
+    assert sanitized == "https://t.me/example_vpn_bot?start=[REDACTED]"
+    assert "visible-start-token" not in sanitized

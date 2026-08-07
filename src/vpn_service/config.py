@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+import ipaddress
+import re
 from enum import StrEnum
 from typing import Annotated, Literal, Self
 
@@ -83,6 +85,16 @@ class Settings(BaseSettings):
     trial_duration_seconds: Annotated[int, Field(gt=0)] = 86_400
     pairing_token_ttl_seconds: Annotated[int, Field(gt=0)] = 600
     device_limit_per_user: Annotated[int, Field(gt=0)] = 3
+    pairing_poll_after_seconds: Annotated[int, Field(ge=2, le=60)] = 2
+    pairing_init_rate_per_minute: Annotated[int, Field(gt=0)] = 10
+    pairing_init_rate_per_hour: Annotated[int, Field(gt=0)] = 30
+    pairing_status_rate_per_minute: Annotated[int, Field(gt=0)] = 30
+    rate_limit_retention_seconds: Annotated[int, Field(ge=3600)] = 7200
+    rate_limit_cleanup_interval_seconds: Annotated[int, Field(ge=60)] = 3600
+    trusted_proxy_cidrs: list[str] = Field(
+        default_factory=lambda: ["127.0.0.1/32", "::1/128", "172.16.0.0/12"]
+    )
+    allowed_extension_origins_json: list[str] = Field(default_factory=list)
 
     telegram_delivery_mode: Literal["webhook", "polling"] = "webhook"
     telegram_bot_token: SecretStr | None = None
@@ -90,6 +102,7 @@ class Settings(BaseSettings):
     telegram_webhook_public_base_url: AnyHttpUrl | None = None
     telegram_webhook_secret: SecretStr | None = None
     telegram_webhook_path_secret: SecretStr | None = None
+    telegram_update_max_body_bytes: Annotated[int, Field(ge=1, le=1_048_576)] = 1_048_576
 
     node_assignment_hard_capacity: bool = True
     node_block_failure_threshold: Annotated[int, Field(ge=1)] = 3
@@ -160,6 +173,26 @@ class Settings(BaseSettings):
             raise ValueError("active proxy encryption key does not exist")
         if self.outbox_retry_max_seconds < self.outbox_retry_base_seconds:
             raise ValueError("outbox max retry must be greater than or equal to base retry")
+        if self.rate_limit_retention_seconds <= self.rate_limit_cleanup_interval_seconds:
+            raise ValueError("rate limit retention must exceed its cleanup interval")
+        for value in self.trusted_proxy_cidrs:
+            try:
+                ipaddress.ip_network(value, strict=False)
+            except ValueError as exc:
+                raise ValueError(f"invalid trusted proxy CIDR: {value}") from exc
+        if len(set(self.allowed_extension_origins_json)) != len(
+            self.allowed_extension_origins_json
+        ):
+            raise ValueError("extension origins must be unique")
+        extension_origin = re.compile(r"^chrome-extension://[a-p]{32}$")
+        if any(
+            not extension_origin.fullmatch(origin) for origin in self.allowed_extension_origins_json
+        ):
+            raise ValueError("extension origins must be exact Chrome extension origins")
+        if self.telegram_bot_username is not None and not re.fullmatch(
+            r"[A-Za-z0-9_]{5,32}", self.telegram_bot_username
+        ):
+            raise ValueError("TELEGRAM_BOT_USERNAME has an invalid format")
         if self.canary_min_successful_targets > len(self.canary_probe_urls_json):
             raise ValueError("canary target quorum exceeds configured targets")
         if len({url.host for url in self.canary_probe_urls_json}) < 2:
@@ -207,6 +240,15 @@ class Settings(BaseSettings):
             raise ValueError("production trial must be 24 hours")
         if self.device_limit_per_user != 3:
             raise ValueError("production device limit must be 3")
+        if (
+            self.pairing_poll_after_seconds,
+            self.pairing_init_rate_per_minute,
+            self.pairing_init_rate_per_hour,
+            self.pairing_status_rate_per_minute,
+        ) != (2, 10, 30, 30):
+            raise ValueError(
+                "production pairing polling and rate limits must match the MVP profile"
+            )
         if not self.node_assignment_hard_capacity:
             raise ValueError("production node assignment must enforce hard capacity")
         if (self.node_block_failure_threshold, self.node_recovery_success_threshold) != (3, 3):
@@ -217,6 +259,8 @@ class Settings(BaseSettings):
             raise ValueError("production canary interval must be 60 seconds")
         if self.telegram_delivery_mode != "webhook":
             raise ValueError("production Telegram delivery mode must be webhook")
+        if not self.allowed_extension_origins_json:
+            raise ValueError("production requires at least one allowed extension origin")
         telegram_required = {
             "TELEGRAM_BOT_TOKEN": self.telegram_bot_token,
             "TELEGRAM_BOT_USERNAME": self.telegram_bot_username,

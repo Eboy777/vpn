@@ -75,6 +75,9 @@ def settings_factory() -> Callable[..., Settings]:
                     "telegram_webhook_public_base_url": "https://bot.vpn.example",
                     "telegram_webhook_secret": "production-webhook-secret-material-01",
                     "telegram_webhook_path_secret": "production-webhook-path-material-01",
+                    "allowed_extension_origins_json": [
+                        "chrome-extension://abcdefghijklmnopabcdefghijklmnop"
+                    ],
                 }
             )
         values.update(overrides)

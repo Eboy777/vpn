@@ -28,7 +28,7 @@ async def test_liveness_does_not_touch_database(
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
-    assert response.headers["content-type"] == "application/json"
+    assert response.headers["content-type"] == "application/json; charset=utf-8"
     assert response.headers["x-request-id"]
     assert calls == 0
 

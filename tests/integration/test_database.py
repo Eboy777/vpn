@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from alembic import command
@@ -21,9 +21,10 @@ from sqlalchemy.ext.asyncio import (
 from vpn_service.config import Settings
 from vpn_service.domain.enums import OutboxStatus
 from vpn_service.persistence.database import Database
-from vpn_service.persistence.models import Node, OutboxEvent, Payment, User
+from vpn_service.persistence.models import Node, OutboxEvent, Payment, RateLimitCounter, User
 from vpn_service.worker.leader import WorkerAlreadyRunningError, WorkerLeader
 from vpn_service.worker.outbox import OutboxWorker
+from vpn_service.worker.rate_limits import RateLimitPruner
 
 
 def database_url() -> str:
@@ -139,6 +140,7 @@ async def test_schema_has_named_constraints_and_indexes(engine: AsyncEngine) -> 
         "nodes",
         "outbox_events",
         "payments",
+        "rate_limit_counters",
         "telegram_update_events",
         "users",
     }
@@ -233,3 +235,47 @@ async def test_only_one_worker_can_hold_scheduler_lock(engine: AsyncEngine) -> N
 
     async with WorkerLeader(engine):
         pass
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_rate_limit_pruner_removes_only_expired_windows(
+    engine: AsyncEngine,
+    migrated_database: str,
+    settings_factory: Callable[..., Settings],
+) -> None:
+    now = datetime(2026, 8, 7, 12, tzinfo=UTC)
+    sessions = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    suffix = uuid.uuid4().bytes
+    async with sessions.begin() as session:
+        session.add_all(
+            [
+                RateLimitCounter(
+                    scope="pruner-test-old",
+                    subject_hash=suffix + suffix,
+                    window_start=now - timedelta(hours=3),
+                    request_count=1,
+                ),
+                RateLimitCounter(
+                    scope="pruner-test-current",
+                    subject_hash=suffix + suffix,
+                    window_start=now - timedelta(minutes=30),
+                    request_count=1,
+                ),
+            ]
+        )
+
+    settings = settings_factory(database_url=migrated_database)
+    removed = await RateLimitPruner(sessions, settings, clock=lambda: now).prune_once()
+
+    async with sessions() as session:
+        current = await session.get(
+            RateLimitCounter,
+            {
+                "scope": "pruner-test-current",
+                "subject_hash": suffix + suffix,
+                "window_start": now - timedelta(minutes=30),
+            },
+        )
+    assert removed >= 1
+    assert current is not None
