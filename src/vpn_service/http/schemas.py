@@ -49,6 +49,82 @@ class PairingPairedResponse(StrictRequest):
     token_type: Literal["Bearer"] = "Bearer"
 
 
+class PublicNodeResponse(StrictRequest):
+    id: uuid.UUID
+    name: Annotated[str, Field(min_length=1, max_length=64)]
+    host: Annotated[str, Field(min_length=1, max_length=253)]
+    port: Annotated[int, Field(ge=1, le=65535)]
+    country_code: Annotated[str, Field(pattern=r"^[A-Z]{2}$")]
+
+
+class AccessDetailsResponse(StrictRequest):
+    state: Literal["trial", "paid", "expired", "blocked"]
+    trial_expires_at: datetime | None
+    subscription_expires_at: datetime | None
+    access_expires_at: datetime | None
+    can_select_node: bool
+
+
+class ProxyCredentialsResponse(StrictRequest):
+    proxy_username: Annotated[str, Field(pattern=r"^u_[a-z0-9]{26}$")]
+    proxy_password: Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{32}$")]
+
+
+class VpnStatusResponse(StrictRequest):
+    available: bool
+    unavailable_reason: Literal["ACCESS_EXPIRED", "USER_BLOCKED", "NO_ACTIVE_NODE"] | None
+    node: PublicNodeResponse | None
+    credentials: ProxyCredentialsResponse | None
+    bypass_list: Annotated[list[str], Field(min_length=1, max_length=10)]
+
+
+class StatusResponse(StrictRequest):
+    device_id: uuid.UUID
+    access: AccessDetailsResponse
+    node_selection_mode: Literal["auto", "manual"]
+    vpn: VpnStatusResponse
+    server_time: datetime
+    next_check_seconds: Annotated[int, Field(ge=60, le=3600)]
+
+
+class SelectableNodeResponse(StrictRequest):
+    id: uuid.UUID
+    name: Annotated[str, Field(min_length=1, max_length=64)]
+    country_code: Annotated[str, Field(pattern=r"^[A-Z]{2}$")]
+    selected: bool
+
+
+class NodeListResponse(StrictRequest):
+    nodes: Annotated[list[SelectableNodeResponse], Field(max_length=100)]
+    node_selection_mode: Literal["auto", "manual"]
+    generated_at: datetime
+
+
+class NodeSelectRequest(StrictRequest):
+    node_id: uuid.UUID | None
+
+    @field_validator("node_id", mode="before")
+    @classmethod
+    def canonical_node_id(cls, value: object) -> object:
+        if value is None:
+            return value
+        if not isinstance(value, str):
+            raise ValueError("node_id must be null or a canonical UUID string")
+        try:
+            parsed = uuid.UUID(value)
+        except ValueError as exc:
+            raise ValueError("node_id must be null or a canonical UUID string") from exc
+        if str(parsed) != value:
+            raise ValueError("node_id must be a canonical lowercase UUID")
+        return value
+
+
+class NodeSelectionResponse(StrictRequest):
+    assigned_node: PublicNodeResponse
+    node_selection_mode: Literal["auto", "manual"]
+    changed: bool
+
+
 SignedInt64 = Annotated[int, Field(strict=True, ge=-(2**63), le=2**63 - 1)]
 NonNegativeInt64 = Annotated[int, Field(strict=True, ge=0, le=2**63 - 1)]
 

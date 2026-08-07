@@ -29,13 +29,16 @@
    docker compose --profile test run --rm tests
    ```
 
-## Реализовано к завершению этапа 2
+## Реализовано к завершению этапа 3
 
 - `POST /api/pairing/init` — создаёт или безопасно перезапускает pairing устройства;
 - `GET /api/pairing/status` — возвращает pending либо новый device token после привязки;
 - `POST /integrations/telegram/webhook/{path_secret}` — идемпотентно обрабатывает private `/start`;
 - единственный 24-часовой trial на Telegram-пользователя, лимит устройств и автоматическое назначение active-ноды;
 - HMAC-SHA-256 для токенов, AES-256-GCM для proxy-пароля и общие PostgreSQL rate limits.
+- `GET /api/status` — проверяет доступ, выполняет failover и выдаёт credentials только разрешённому устройству;
+- `GET /api/nodes` и `POST /api/nodes/select` — paid-only список и ручной выбор локации;
+- транзакционное распределение по относительной загрузке с жёстким соблюдением `capacity_users`.
 
 Локальные значения Telegram в `.env.example` подходят только для автоматических тестов. Для проверки
 через настоящий Telegram требуются BotFather token, username бота и внешний HTTPS webhook.

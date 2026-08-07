@@ -9,7 +9,10 @@ from vpn_service.http.responses import error_response
 
 class RequestContractMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.method == "POST" and request.url.path == "/api/pairing/init":
+        if request.method == "POST" and request.url.path in {
+            "/api/pairing/init",
+            "/api/nodes/select",
+        }:
             content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
             if content_type != "application/json":
                 return error_response(

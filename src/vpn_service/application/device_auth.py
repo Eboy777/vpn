@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import UTC
+from datetime import UTC, timedelta
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -28,6 +28,7 @@ class DeviceAuthenticator:
         settings: Settings,
     ) -> None:
         self._sessions = sessions
+        self._settings = settings
         self._tokens = TokenHasher(settings)
 
     async def authenticate(self, raw_token: str) -> AuthenticatedDevice:
@@ -62,7 +63,11 @@ class DeviceAuthenticator:
             device.pairing_expires_at = None
             now = await session.scalar(select(func.now()))
             assert now is not None
-            device.last_seen_at = now.astimezone(UTC)
+            normalized_now = now.astimezone(UTC)
+            if device.last_seen_at is None or device.last_seen_at <= normalized_now - timedelta(
+                seconds=self._settings.device_last_seen_write_interval_seconds
+            ):
+                device.last_seen_at = normalized_now
             return AuthenticatedDevice(
                 device_row_id=device.id,
                 device_id=device.device_id,

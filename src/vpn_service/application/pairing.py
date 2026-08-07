@@ -10,11 +10,12 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from vpn_service.application.node_assignment import choose_node
 from vpn_service.config import Settings
-from vpn_service.domain.enums import DeviceStatus, NodeStatus, UserStatus
+from vpn_service.domain.enums import DeviceStatus, UserStatus
 from vpn_service.domain.errors import ApplicationError
 from vpn_service.http.schemas import TelegramUpdateRequest
-from vpn_service.persistence.models import Device, Node, TelegramUpdateEvent, User
+from vpn_service.persistence.models import Device, TelegramUpdateEvent, User
 from vpn_service.persistence.rate_limits import RateLimitDecision, consume_rate_limit
 from vpn_service.security.credentials import ProxyCredentialsCipher
 from vpn_service.security.tokens import TokenHasher
@@ -241,7 +242,12 @@ class PairingService:
                 return "device_limit_reached"
 
             if user.assigned_node_id is None:
-                user.assigned_node_id = await self._choose_node(session, now)
+                selected_node = await choose_node(
+                    session,
+                    now=now,
+                    hard_capacity=self._settings.node_assignment_hard_capacity,
+                )
+                user.assigned_node_id = selected_node.id if selected_node is not None else None
             device.user_id = user.id
             device.status = DeviceStatus.ACTIVE.value
             device.pairing_error_code = None
@@ -292,44 +298,6 @@ class PairingService:
             )
         ).scalar_one()
         return concurrent, False
-
-    async def _choose_node(self, session: AsyncSession, now: datetime) -> uuid.UUID | None:
-        nodes = list(
-            (
-                await session.scalars(
-                    select(Node)
-                    .where(Node.status == NodeStatus.ACTIVE.value)
-                    .order_by(Node.id)
-                    .with_for_update()
-                )
-            ).all()
-        )
-        if not nodes:
-            return None
-        loads = dict(
-            (
-                await session.execute(
-                    select(User.assigned_node_id, func.count(User.id))
-                    .where(
-                        User.status == UserStatus.ACTIVE.value,
-                        User.assigned_node_id.is_not(None),
-                        or_(
-                            User.trial_expires_at > now,
-                            User.subscription_expires_at > now,
-                        ),
-                    )
-                    .group_by(User.assigned_node_id)
-                )
-            ).all()
-        )
-        eligible = [node for node in nodes if int(loads.get(node.id, 0)) < node.capacity_users]
-        if not eligible:
-            return None
-        selected = min(
-            eligible,
-            key=lambda node: (int(loads.get(node.id, 0)) / node.capacity_users, node.id),
-        )
-        return selected.id
 
     async def _enforce_init_rate_limits(self, subject: bytes, now: datetime) -> None:
         minute = await self._consume_rate_limit(

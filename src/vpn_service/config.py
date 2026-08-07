@@ -89,6 +89,10 @@ class Settings(BaseSettings):
     pairing_init_rate_per_minute: Annotated[int, Field(gt=0)] = 10
     pairing_init_rate_per_hour: Annotated[int, Field(gt=0)] = 30
     pairing_status_rate_per_minute: Annotated[int, Field(gt=0)] = 30
+    status_rate_per_minute: Annotated[int, Field(gt=0)] = 120
+    nodes_rate_per_minute: Annotated[int, Field(gt=0)] = 30
+    node_select_rate_per_minute: Annotated[int, Field(gt=0)] = 10
+    device_last_seen_write_interval_seconds: Annotated[int, Field(ge=60)] = 60
     rate_limit_retention_seconds: Annotated[int, Field(ge=3600)] = 7200
     rate_limit_cleanup_interval_seconds: Annotated[int, Field(ge=60)] = 3600
     trusted_proxy_cidrs: list[str] = Field(
@@ -249,6 +253,13 @@ class Settings(BaseSettings):
             raise ValueError(
                 "production pairing polling and rate limits must match the MVP profile"
             )
+        if (
+            self.status_rate_per_minute,
+            self.nodes_rate_per_minute,
+            self.node_select_rate_per_minute,
+            self.device_last_seen_write_interval_seconds,
+        ) != (120, 30, 10, 60):
+            raise ValueError("production access endpoint limits must match the MVP profile")
         if not self.node_assignment_hard_capacity:
             raise ValueError("production node assignment must enforce hard capacity")
         if (self.node_block_failure_threshold, self.node_recovery_success_threshold) != (3, 3):

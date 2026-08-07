@@ -72,7 +72,7 @@ class Node(Base):
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     host: Mapped[str] = mapped_column(String(253), nullable=False)
     port: Mapped[int] = mapped_column(Integer, nullable=False)
     country_code: Mapped[str] = mapped_column(String(2), nullable=False)

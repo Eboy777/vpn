@@ -5,10 +5,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from vpn_service.application.access import AccessService
 from vpn_service.application.device_auth import DeviceAuthenticator
 from vpn_service.application.health import DatabaseProbe
 from vpn_service.application.pairing import PairingService
 from vpn_service.config import Settings
+from vpn_service.http.access import router as access_router
 from vpn_service.http.contract import RequestContractMiddleware
 from vpn_service.http.cors import ExtensionCorsMiddleware
 from vpn_service.http.errors import install_error_handlers
@@ -54,6 +56,9 @@ def create_app(
     app.state.device_authenticator = (
         DeviceAuthenticator(database.sessions, resolved_settings) if database is not None else None
     )
+    app.state.access_service = (
+        AccessService(database.sessions, resolved_settings) if database is not None else None
+    )
     install_error_handlers(app)
     app.add_middleware(RequestContractMiddleware)
     app.add_middleware(
@@ -64,4 +69,5 @@ def create_app(
     app.include_router(health_router)
     app.include_router(pairing_router)
     app.include_router(telegram_router)
+    app.include_router(access_router)
     return app
