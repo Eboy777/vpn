@@ -13,7 +13,9 @@ class DeviceStatus(StrEnum):
 
 
 class NodeStatus(StrEnum):
+    WARMING = "warming"
     ACTIVE = "active"
+    QUIESCING = "quiescing"
     DRAINING = "draining"
     DEAD = "dead"
     BLOCKED = "blocked"

@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from vpn_service.application.access import AccessService
 from vpn_service.application.device_auth import DeviceAuthenticator
 from vpn_service.application.health import DatabaseProbe
+from vpn_service.application.node_credentials import NodeAuthenticator, NodeCredentialsService
 from vpn_service.application.pairing import PairingService
 from vpn_service.config import Settings
 from vpn_service.http.access import router as access_router
@@ -16,6 +17,7 @@ from vpn_service.http.cors import ExtensionCorsMiddleware
 from vpn_service.http.errors import install_error_handlers
 from vpn_service.http.health import router as health_router
 from vpn_service.http.middleware import RequestLoggingMiddleware
+from vpn_service.http.node_credentials import router as node_credentials_router
 from vpn_service.http.pairing import router as pairing_router
 from vpn_service.http.responses import ContractJSONResponse
 from vpn_service.http.telegram import router as telegram_router
@@ -59,6 +61,14 @@ def create_app(
     app.state.access_service = (
         AccessService(database.sessions, resolved_settings) if database is not None else None
     )
+    app.state.node_authenticator = (
+        NodeAuthenticator(database.sessions, resolved_settings) if database is not None else None
+    )
+    app.state.node_credentials_service = (
+        NodeCredentialsService(database.sessions, resolved_settings)
+        if database is not None
+        else None
+    )
     install_error_handlers(app)
     app.add_middleware(RequestContractMiddleware)
     app.add_middleware(
@@ -70,4 +80,5 @@ def create_app(
     app.include_router(pairing_router)
     app.include_router(telegram_router)
     app.include_router(access_router)
+    app.include_router(node_credentials_router)
     return app

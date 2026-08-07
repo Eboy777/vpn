@@ -29,7 +29,7 @@
    docker compose --profile test run --rm tests
    ```
 
-## Реализовано к завершению этапа 3
+## Реализовано к программному gate этапа 4
 
 - `POST /api/pairing/init` — создаёт или безопасно перезапускает pairing устройства;
 - `GET /api/pairing/status` — возвращает pending либо новый device token после привязки;
@@ -39,6 +39,13 @@
 - `GET /api/status` — проверяет доступ, выполняет failover и выдаёт credentials только разрешённому устройству;
 - `GET /api/nodes` и `POST /api/nodes/select` — paid-only список и ручной выбор локации;
 - транзакционное распределение по относительной загрузке с жёстким соблюдением `capacity_users`.
+- защищённые node snapshots с ETag, lease и идемпотентным подтверждением revision;
+- node sync-agent с атомарной заменой GOST auth-файла, rollback и fail-closed после lease;
+- безопасные `warming`/`quiescing` переходы для bootstrap и планового drain;
+- локальный `vpn-admin` для добавления нод и двухфазной ротации node token.
+
+Для полного закрытия этапа 4 остаётся развернуть код минимум на двух реальных VPS и выполнить
+HTTPS CONNECT через GOST. Локальные и компонентные проверки реальный сетевой тест не заменяют.
 
 Локальные значения Telegram в `.env.example` подходят только для автоматических тестов. Для проверки
 через настоящий Telegram требуются BotFather token, username бота и внешний HTTPS webhook.

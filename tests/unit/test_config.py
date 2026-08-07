@@ -63,6 +63,7 @@ def test_production_profile_accepts_only_approved_values(
         ({"device_limit_per_user": 4}, "device limit must be 3"),
         ({"pairing_init_rate_per_minute": 11}, "rate limits must match"),
         ({"status_rate_per_minute": 121}, "access endpoint limits must match"),
+        ({"internal_api_rate_per_minute": 121}, "snapshot settings must match"),
         ({"node_block_failure_threshold": 2}, "thresholds must be 3 failures"),
         ({"telegram_delivery_mode": "polling"}, "delivery mode must be webhook"),
         ({"payments_production_enabled": True}, "production payments remain disabled"),

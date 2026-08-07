@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import inspect
+from sqlalchemy import inspect, select
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
@@ -21,10 +21,18 @@ from sqlalchemy.ext.asyncio import (
 from vpn_service.config import Settings
 from vpn_service.domain.enums import OutboxStatus
 from vpn_service.persistence.database import Database
-from vpn_service.persistence.models import Node, OutboxEvent, Payment, RateLimitCounter, User
+from vpn_service.persistence.models import (
+    Node,
+    NodeSnapshotIssue,
+    OutboxEvent,
+    Payment,
+    RateLimitCounter,
+    User,
+)
 from vpn_service.worker.leader import WorkerAlreadyRunningError, WorkerLeader
 from vpn_service.worker.outbox import OutboxWorker
 from vpn_service.worker.rate_limits import RateLimitPruner
+from vpn_service.worker.snapshot_issues import SnapshotIssuePruner
 
 
 def database_url() -> str:
@@ -137,6 +145,7 @@ async def test_schema_has_named_constraints_and_indexes(engine: AsyncEngine) -> 
         "node_auth_tokens",
         "node_check_events",
         "node_snapshot_acks",
+        "node_snapshot_issues",
         "nodes",
         "outbox_events",
         "payments",
@@ -279,3 +288,47 @@ async def test_rate_limit_pruner_removes_only_expired_windows(
         )
     assert removed >= 1
     assert current is not None
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_snapshot_issue_pruner_keeps_recent_lease_history(
+    engine: AsyncEngine,
+    migrated_database: str,
+    settings_factory: Callable[..., Settings],
+) -> None:
+    now = datetime(2026, 8, 7, 12, tzinfo=UTC)
+    sessions = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    old_revision = uuid.uuid4().hex + uuid.uuid4().hex
+    recent_revision = uuid.uuid4().hex + uuid.uuid4().hex
+    async with sessions.begin() as session:
+        node_id = await session.scalar(select(Node.id).limit(1))
+        assert node_id is not None
+        session.add_all(
+            [
+                NodeSnapshotIssue(
+                    node_id=node_id,
+                    revision=old_revision,
+                    snapshot_valid_until=now - timedelta(days=2),
+                    issued_at=now - timedelta(days=2),
+                ),
+                NodeSnapshotIssue(
+                    node_id=node_id,
+                    revision=recent_revision,
+                    snapshot_valid_until=now - timedelta(hours=1),
+                    issued_at=now - timedelta(hours=1),
+                ),
+            ]
+        )
+
+    settings = settings_factory(
+        database_url=migrated_database,
+        node_snapshot_issue_retention_seconds=86_400,
+    )
+    removed = await SnapshotIssuePruner(sessions, settings, clock=lambda: now).prune_once()
+    async with sessions() as session:
+        recent = await session.scalar(
+            select(NodeSnapshotIssue).where(NodeSnapshotIssue.revision == recent_revision)
+        )
+    assert removed >= 1
+    assert recent is not None

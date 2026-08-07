@@ -10,6 +10,7 @@ from vpn_service.persistence.database import Database
 from vpn_service.worker.leader import WorkerAlreadyRunningError, WorkerLeader
 from vpn_service.worker.outbox import OutboxWorker
 from vpn_service.worker.rate_limits import RateLimitPruner
+from vpn_service.worker.snapshot_issues import SnapshotIssuePruner
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,9 @@ async def run() -> None:
             async with asyncio.TaskGroup() as tasks:
                 tasks.create_task(OutboxWorker(database.sessions, settings).run_forever(stop))
                 tasks.create_task(RateLimitPruner(database.sessions, settings).run_forever(stop))
+                tasks.create_task(
+                    SnapshotIssuePruner(database.sessions, settings).run_forever(stop)
+                )
     except WorkerAlreadyRunningError:
         logger.error("worker_leader_not_acquired")
         raise

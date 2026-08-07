@@ -56,7 +56,7 @@ class Node(Base):
         CheckConstraint("successful_checks >= 0", name="successful_checks_nonnegative"),
         CheckConstraint("country_code ~ '^[A-Z]{2}$'", name="country_code_format"),
         CheckConstraint(
-            "status IN ('active','draining','dead','blocked')",
+            "status IN ('warming','active','quiescing','draining','dead','blocked')",
             name="status_values",
         ),
         CheckConstraint(
@@ -243,6 +243,23 @@ class NodeSnapshotAck(Base):
     revision: Mapped[str] = mapped_column(String(64), nullable=False)
     applied_at: Mapped[datetime] = created_at_column()
     response_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+
+class NodeSnapshotIssue(Base):
+    __tablename__ = "node_snapshot_issues"
+    __table_args__ = (
+        CheckConstraint("revision ~ '^[0-9a-f]{64}$'", name="revision_format"),
+        UniqueConstraint("node_id", "revision", name="uq_node_snapshot_issue_revision"),
+        Index("ix_node_snapshot_issues_expiry", "snapshot_valid_until"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    node_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False
+    )
+    revision: Mapped[str] = mapped_column(String(64), nullable=False)
+    snapshot_valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    issued_at: Mapped[datetime] = created_at_column()
 
 
 class Canary(Base):

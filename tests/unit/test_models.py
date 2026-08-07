@@ -10,6 +10,7 @@ def test_stage_one_metadata_contains_expected_tables() -> None:
         "node_auth_tokens",
         "node_check_events",
         "node_snapshot_acks",
+        "node_snapshot_issues",
         "nodes",
         "outbox_events",
         "payments",

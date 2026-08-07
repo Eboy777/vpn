@@ -1,0 +1,17 @@
+services:
+  - name: vpn-https-proxy
+    addr: ":443"
+    handler:
+      type: http
+      auther: vpn-users
+    listener:
+      type: tls
+      tls:
+        certFile: /etc/gost/tls/fullchain.pem
+        keyFile: /etc/gost/tls/privkey.pem
+
+authers:
+  - name: vpn-users
+    reload: 5s
+    file:
+      path: /var/lib/vpn-node/auth.txt

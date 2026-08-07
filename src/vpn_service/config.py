@@ -121,6 +121,8 @@ class Settings(BaseSettings):
     )
     canary_min_successful_targets: Annotated[int, Field(ge=1)] = 1
     node_credential_snapshot_ttl_seconds: Annotated[int, Field(gt=0)] = 300
+    internal_api_rate_per_minute: Annotated[int, Field(gt=0)] = 120
+    node_snapshot_issue_retention_seconds: Annotated[int, Field(ge=3600)] = 86_400
 
     tariffs_json: dict[str, TariffSettings]
     robokassa_hash_algorithm: Literal["SHA256"] = "SHA256"
@@ -268,6 +270,11 @@ class Settings(BaseSettings):
             raise ValueError("production node recovery must require administrator approval")
         if self.canary_check_interval_seconds != 60:
             raise ValueError("production canary interval must be 60 seconds")
+        if (
+            self.node_credential_snapshot_ttl_seconds,
+            self.internal_api_rate_per_minute,
+        ) != (300, 120):
+            raise ValueError("production node snapshot settings must match the MVP profile")
         if self.telegram_delivery_mode != "webhook":
             raise ValueError("production Telegram delivery mode must be webhook")
         if not self.allowed_extension_origins_json:

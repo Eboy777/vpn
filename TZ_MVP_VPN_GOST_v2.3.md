@@ -1,6 +1,6 @@
 # Техническое задание MVP браузерного VPN-сервиса
 
-**Версия:** 2.7
+**Версия:** 2.8
 **Формат:** Chrome-расширение + GOST HTTPS Proxy  
 **Масштаб MVP:** до 1 000 зарегистрированных пользователей  
 **Основной протокол:** HTTPS CONNECT через GOST  
@@ -8,7 +8,7 @@
 
 Документ содержит минимальный объём требований, необходимый для разработки и приёмки MVP.
 
-### Утверждённые изменения v2.4–v2.7
+### Утверждённые изменения v2.4–v2.8
 
 1. Telegram deep link, polling привязки и постоянная авторизация устройства используют три независимых секрета.
 2. GOST-ноды получают версионированный snapshot credentials с ограниченным сроком действия, применяют его атомарно и подтверждают применённую revision. После истечения snapshot пользовательские credentials автоматически закрываются.
@@ -24,6 +24,7 @@
 12. Robokassa ResultURL использует POST, Password #2 и ответ `OK{InvId}`. Нормативный wire-contract — `docs/API_CONTRACT.md` v1.
 13. Этап 1 использует отдельный API process и один scheduler/worker под PostgreSQL advisory lock. Повторяемые фоновые действия сохраняются в transactional outbox. Токены нод и канареек хранятся в отдельных versioned auth-таблицах со статусами `current/next/revoked`.
 14. Общие для всех API-процессов pairing rate limits хранятся в PostgreSQL только под HMAC-hash субъекта. Счётчики имеют минутные/часовые окна и автоматически очищаются выделенным worker после retention; IP, pairing token и другие raw-секреты в таблицу не записываются.
+15. Безопасный bootstrap и planned drain используют промежуточные состояния `warming` и `quiescing`: в них нода получает полный snapshot, но не участвует в назначении пользователей. Это закрывает обнаруженное окно между включением ноды и первым ack.
 
 ## 1. Цель и границы MVP
 
@@ -175,7 +176,7 @@ PostgreSQL 16+, миграции Alembic, даты — `TIMESTAMPTZ` в UTC. П�
 | `port` | INTEGER | HTTPS-порт |
 | `country_code` | CHAR(2) | Локация |
 | `provider` | VARCHAR | Хостинг-провайдер |
-| `status` | VARCHAR | `active` / `draining` / `dead` / `blocked` |
+| `status` | VARCHAR | `warming` / `active` / `quiescing` / `draining` / `dead` / `blocked` |
 | `capacity_users` | INTEGER | Расчётная ёмкость |
 | `failed_checks` | INTEGER | Число последовательных ошибок канарейки |
 | `successful_checks` | INTEGER | Число последовательных успешных проверок |

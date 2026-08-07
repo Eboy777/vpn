@@ -125,6 +125,32 @@ class NodeSelectionResponse(StrictRequest):
     changed: bool
 
 
+class SnapshotCredentialResponse(StrictRequest):
+    proxy_username: Annotated[str, Field(pattern=r"^u_[a-z0-9]{26}$")]
+    proxy_password: Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{32}$")]
+    valid_until: datetime
+
+
+class NodeCredentialsSnapshotResponse(StrictRequest):
+    node_id: uuid.UUID
+    node_status: Literal["warming", "active", "quiescing", "draining", "blocked"]
+    generated_at: datetime
+    snapshot_valid_until: datetime
+    revision: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    credentials: Annotated[list[SnapshotCredentialResponse], Field(max_length=100_000)]
+
+
+class NodeCredentialsAckRequest(StrictRequest):
+    revision: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+
+
+class NodeCredentialsAckResponse(StrictRequest):
+    processed: Literal[True]
+    node_id: uuid.UUID
+    revision: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    applied_at: datetime
+
+
 SignedInt64 = Annotated[int, Field(strict=True, ge=-(2**63), le=2**63 - 1)]
 NonNegativeInt64 = Annotated[int, Field(strict=True, ge=0, le=2**63 - 1)]
 
