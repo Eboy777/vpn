@@ -31,6 +31,7 @@ packages = ["src/vpn_service"]
 [project.scripts]
 vpn-node-sync = "vpn_service.node_agent.main:main"
 vpn-admin = "vpn_service.admin_cli:main"
+vpn-api-proxy-check = "vpn_service.api_proxy_check:main"
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers"

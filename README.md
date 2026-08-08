@@ -29,7 +29,7 @@
    docker compose --profile test run --rm tests
    ```
 
-## Реализовано к программному gate этапа 4
+## Реализовано к программному gate этапа 5
 
 - `POST /api/pairing/init` — создаёт или безопасно перезапускает pairing устройства;
 - `GET /api/pairing/status` — возвращает pending либо новый device token после привязки;
@@ -42,10 +42,28 @@
 - защищённые node snapshots с ETag, lease и идемпотентным подтверждением revision;
 - node sync-agent с атомарной заменой GOST auth-файла, rollback и fail-closed после lease;
 - безопасные `warming`/`quiescing` переходы для bootstrap и планового drain;
-- локальный `vpn-admin` для добавления нод и двухфазной ротации node token.
+- локальный `vpn-admin` для добавления нод и двухфазной ротации node token;
+- эталонный primary/fallback HTTP-клиент: переключение только при network/timeout и
+  `408/502/503/504`, без обхода `429` через резервный ingress;
+- production-шаблоны двух TLS ingress, WireGuard A/B→origin, firewall и отдельного
+  Compose control origin без публичного PostgreSQL;
+- защита client IP: backend доверяет только двум точным WireGuard peer-адресам, а ingress
+  перезаписывает пользовательский `X-Forwarded-For`;
+- команда проверки обоих ingress:
+
+  ```bash
+  vpn-api-proxy-check \
+    --url https://api-a.vpn.example \
+    --url https://api-b.vpn.example
+  ```
 
 Для полного закрытия этапа 4 остаётся развернуть код минимум на двух реальных VPS и выполнить
 HTTPS CONNECT через GOST. Локальные и компонентные проверки реальный сетевой тест не заменяют.
+
+Для полного закрытия этапа 5 остаётся арендовать два API proxy VPS у разных провайдеров/ASN,
+назначить домены, выпустить TLS-сертификаты и развернуть шаблоны из `deploy/api-proxy`. Затем
+нужно с внешнего узла доказать доступность обоих маршрутов, primary→fallback и прямую
+недоступность origin. Общий FastAPI/PostgreSQL origin остаётся сознательной точкой отказа MVP.
 
 Локальные значения Telegram в `.env.example` подходят только для автоматических тестов. Для проверки
 через настоящий Telegram требуются BotFather token, username бота и внешний HTTPS webhook.

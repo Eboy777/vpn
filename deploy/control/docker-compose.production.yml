@@ -1,0 +1,64 @@
+x-app: &app
+  build:
+    context: ../..
+    args:
+      INSTALL_DEV: "false"
+  env_file:
+    - ${VPN_ENV_FILE:?set VPN_ENV_FILE to the production env file}
+  depends_on:
+    postgres:
+      condition: service_healthy
+  restart: unless-stopped
+  networks:
+    - private
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    env_file:
+      - ${VPN_ENV_FILE:?set VPN_ENV_FILE to the production env file}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    networks:
+      - private
+
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  api:
+    <<: *app
+    environment:
+      PROCESS_ROLE: api
+    ports:
+      # Docker publishes FastAPI only on the origin's WireGuard address.
+      - "${CONTROL_WIREGUARD_IP:?set CONTROL_WIREGUARD_IP}:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    command: ["python", "-m", "vpn_service.worker.main"]
+    environment:
+      PROCESS_ROLE: worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+networks:
+  private:
+
+volumes:
+  postgres_data:

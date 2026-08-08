@@ -1,0 +1,9 @@
+[Interface]
+Address = 10.77.0.3/32
+PrivateKey = REPLACE_WITH_PROXY_B_PRIVATE_KEY
+
+[Peer]
+PublicKey = REPLACE_WITH_ORIGIN_PUBLIC_KEY
+Endpoint = 192.0.2.10:51820
+AllowedIPs = 10.77.0.1/32
+PersistentKeepalive = 25

@@ -1,0 +1,26 @@
+#!/usr/sbin/nft -f
+
+table inet vpn_origin {
+    chain input {
+        type filter hook input priority filter; policy drop;
+        ct state established,related accept
+        iifname "lo" accept
+        ip protocol icmp accept
+        ip6 nexthdr ipv6-icmp accept
+
+        # Replace with the administrator's fixed management network.
+        ip saddr 203.0.113.10/32 tcp dport 22 accept
+        udp dport 51820 accept
+        iifname "wg0" ip saddr { 10.77.0.2, 10.77.0.3 } tcp dport 8000 accept
+    }
+
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+        ct state established,related accept
+        iifname "wg0" ip saddr { 10.77.0.2, 10.77.0.3 } tcp dport 8000 accept
+    }
+
+    chain output {
+        type filter hook output priority filter; policy accept;
+    }
+}

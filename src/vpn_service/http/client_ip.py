@@ -16,9 +16,12 @@ def client_ip(request: Request, trusted_proxy_cidrs: list[str]) -> str:
     if any(direct_ip in network for network in networks):
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:
-            candidate = forwarded.split(",", 1)[0].strip()
+            candidates = forwarded.split(",")
+            if len(candidates) != 1:
+                return str(direct_ip)
             try:
-                return str(ipaddress.ip_address(candidate))
+                candidate = ipaddress.ip_address(candidates[0].strip())
             except ValueError:
-                pass
+                return str(direct_ip)
+            return str(candidate)
     return str(direct_ip)

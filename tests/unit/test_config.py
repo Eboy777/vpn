@@ -76,6 +76,31 @@ def test_production_profile_accepts_only_approved_values(
             {"public_control_urls_json": ["https://api-a.example.test"]},
             "at least two distinct control URLs",
         ),
+        (
+            {
+                "public_control_urls_json": [
+                    "https://api-a.vpn.example",
+                    "https://api-a.vpn.example:8443",
+                ]
+            },
+            "two distinct hostnames",
+        ),
+        (
+            {"trusted_proxy_cidrs": ["10.77.0.0/24", "10.78.0.3/32"]},
+            "must use exact host CIDRs",
+        ),
+        (
+            {"trusted_proxy_cidrs": ["10.77.0.2/32"]},
+            "exactly two API proxy peer addresses",
+        ),
+        (
+            {"trusted_proxy_cidrs": ["10.77.0.2/32", "10.77.0.2/32"]},
+            "exactly two API proxy peer addresses",
+        ),
+        (
+            {"trusted_proxy_cidrs": ["127.0.0.1/32", "10.77.0.3/32"]},
+            "must be private WireGuard peer addresses",
+        ),
     ],
 )
 def test_production_profile_rejects_unsafe_values(

@@ -78,6 +78,7 @@ def settings_factory() -> Callable[..., Settings]:
                     "allowed_extension_origins_json": [
                         "chrome-extension://abcdefghijklmnopabcdefghijklmnop"
                     ],
+                    "trusted_proxy_cidrs": ["10.77.0.2/32", "10.77.0.3/32"],
                 }
             )
         values.update(overrides)

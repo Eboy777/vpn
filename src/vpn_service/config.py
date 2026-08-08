@@ -229,8 +229,36 @@ class Settings(BaseSettings):
             url.host is None or url.host.endswith(".test") for url in self.public_control_urls_json
         ):
             raise ValueError("production control URLs must not use placeholder hosts")
+        if len({url.host for url in self.public_control_urls_json}) != 2:
+            raise ValueError("production control URLs must use two distinct hostnames")
+        if any(
+            url.path not in {"", "/"}
+            or url.query is not None
+            or url.fragment is not None
+            or url.username is not None
+            or url.port not in {None, 443}
+            for url in self.public_control_urls_json
+        ):
+            raise ValueError("production control URLs must be HTTPS origins on port 443")
         if str(self.app_public_base_url).rstrip("/") != urls[0]:
             raise ValueError("APP_PUBLIC_BASE_URL must be the first public control URL")
+        trusted_networks = [
+            ipaddress.ip_network(value, strict=False) for value in self.trusted_proxy_cidrs
+        ]
+        if len(trusted_networks) != 2 or len(set(trusted_networks)) != 2:
+            raise ValueError("production must trust exactly two API proxy peer addresses")
+        if any(network.prefixlen != network.max_prefixlen for network in trusted_networks):
+            raise ValueError("production trusted proxies must use exact host CIDRs")
+        if any(
+            not network.network_address.is_private
+            or network.network_address.is_loopback
+            or network.network_address.is_link_local
+            or network.network_address.is_unspecified
+            or network.network_address.is_multicast
+            or network.network_address.is_reserved
+            for network in trusted_networks
+        ):
+            raise ValueError("production trusted proxies must be private WireGuard peer addresses")
         if "local-only" in self.database_url.get_secret_value().lower():
             raise ValueError("production DATABASE_URL contains a development placeholder")
         for domain, versions in self.token_hash_keyring_json.items():
