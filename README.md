@@ -49,6 +49,10 @@
   Compose control origin без публичного PostgreSQL;
 - защита client IP: backend доверяет только двум точным WireGuard peer-адресам, а ingress
   перезаписывает пользовательский `X-Forwarded-For`;
+- исходящий long polling GOST-нод: изменение списка пользователей обнаруживается примерно за
+  0,5 секунды без открытия входящего webhook на ноде;
+- worker-watchdog: три пропущенных ack-окна или stale heartbeat автоматически блокируют ноду,
+  после чего пользователи переносятся на другую active-ноду с доступной capacity;
 - команда проверки обоих ingress:
 
   ```bash

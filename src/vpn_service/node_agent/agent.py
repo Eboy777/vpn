@@ -63,18 +63,19 @@ class NodeSyncAgent:
         self._files.verify_same_filesystem()
         await self._ensure_startup_state()
         while not stop.is_set():
-            delay = self._settings.node_sync_interval_seconds + random.uniform(
-                0,
-                self._settings.node_sync_jitter_seconds,
-            )
+            delay = 0.0
             try:
                 await self.sync_once()
             except RetryAfterError as exc:
-                delay = max(delay, exc.seconds)
+                delay = max(self._error_retry_delay(), exc.seconds)
                 logger.warning("node_sync_rate_limited", extra={"retry_after": exc.seconds})
             except Exception:
                 logger.exception("node_sync_failed")
                 await self._fail_closed_if_expired()
+                delay = self._error_retry_delay()
+            if delay <= 0:
+                await asyncio.sleep(0)
+                continue
             try:
                 await asyncio.wait_for(stop.wait(), timeout=delay)
             except TimeoutError:
@@ -163,7 +164,10 @@ class NodeSyncAgent:
         headers = self._authorization_headers()
         if state.revision is not None and not state.failed_closed:
             headers["If-None-Match"] = f'"sha256:{state.revision}"'
-        path = f"/internal/nodes/{self._settings.node_id}/credentials"
+        path = (
+            f"/internal/nodes/{self._settings.node_id}/credentials"
+            f"?wait_seconds={self._settings.node_long_poll_wait_seconds}"
+        )
         return await self._request_with_fallback("GET", path, headers=headers)
 
     async def _acknowledge(self, revision: str) -> None:
@@ -260,6 +264,12 @@ class NodeSyncAgent:
         if value.tzinfo is None:
             raise RuntimeError("node agent clock must be timezone-aware")
         return value.astimezone(UTC)
+
+    def _error_retry_delay(self) -> float:
+        return self._settings.node_sync_interval_seconds + random.uniform(
+            0,
+            self._settings.node_sync_jitter_seconds,
+        )
 
 
 async def _run_command(command: tuple[str, ...], timeout_seconds: float) -> None:

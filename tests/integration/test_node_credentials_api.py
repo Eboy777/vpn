@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import uuid
 from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime, timedelta
@@ -33,6 +34,7 @@ from vpn_service.persistence.models import (
 )
 from vpn_service.security.credentials import ProxyCredentialsCipher
 from vpn_service.security.tokens import TokenHasher
+from vpn_service.worker.node_snapshot_watchdog import NodeSnapshotWatchdog
 
 
 def database_url() -> str:
@@ -185,15 +187,6 @@ async def test_snapshot_filters_sorts_and_supports_etag_and_idempotent_ack(
     assert response.headers["x-snapshot-valid-until"] == body["snapshot_valid_until"]
     assert response.headers["cache-control"] == "no-store"
 
-    not_modified = await client.get(
-        f"/internal/nodes/{node.id}/credentials",
-        headers={**auth(token), "If-None-Match": response.headers["etag"]},
-    )
-    assert not_modified.status_code == 304
-    assert not not_modified.content
-    assert "content-type" not in not_modified.headers
-    assert not_modified.headers["etag"] == response.headers["etag"]
-
     ack = await client.post(
         f"/internal/nodes/{node.id}/credentials/ack",
         headers=auth(token),
@@ -207,6 +200,15 @@ async def test_snapshot_filters_sorts_and_supports_etag_and_idempotent_ack(
     assert ack.status_code == 200
     assert replay.status_code == 200
     assert replay.content == ack.content
+
+    not_modified = await client.get(
+        f"/internal/nodes/{node.id}/credentials?wait_seconds=0",
+        headers={**auth(token), "If-None-Match": response.headers["etag"]},
+    )
+    assert not_modified.status_code == 304
+    assert not not_modified.content
+    assert "content-type" not in not_modified.headers
+    assert not_modified.headers["etag"] == response.headers["etag"]
 
     async with app.state.database.sessions() as session:
         stored = await session.get(Node, node.id)
@@ -243,6 +245,10 @@ async def test_node_token_scope_status_and_strict_contract(
         f"/internal/nodes/{first.id}/credentials",
         headers={**auth(first_token), "If-None-Match": "weak"},
     )
+    invalid_wait = await client.get(
+        f"/internal/nodes/{first.id}/credentials?wait_seconds=26",
+        headers=auth(first_token),
+    )
     wrong_media = await client.post(
         f"/internal/nodes/{first.id}/credentials/ack",
         headers={**auth(first_token), "Content-Type": "text/plain"},
@@ -255,6 +261,7 @@ async def test_node_token_scope_status_and_strict_contract(
     assert invalid_id.status_code == 400
     assert invalid_id.json()["error"]["code"] == "INVALID_NODE_ID"
     assert invalid_etag.status_code == 400
+    assert invalid_wait.status_code == 400
     assert wrong_media.status_code == 415
 
     async with app.state.database.sessions.begin() as session:
@@ -505,6 +512,42 @@ async def test_unknown_and_expired_snapshot_ack_are_rejected(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_stale_ack_cannot_replace_newer_applied_revision(
+    node_client: tuple[httpx.AsyncClient, object, Settings],
+) -> None:
+    client, app, settings = node_client
+    node, token = await create_node_identity(app, settings)
+    first = await client.get(
+        f"/internal/nodes/{node.id}/credentials",
+        headers=auth(token),
+    )
+    await create_user(app, settings, username_sort=19, access="trial")
+    second = await client.get(
+        f"/internal/nodes/{node.id}/credentials",
+        headers=auth(token),
+    )
+    assert first.json()["revision"] != second.json()["revision"]
+
+    latest_ack = await client.post(
+        f"/internal/nodes/{node.id}/credentials/ack",
+        headers=auth(token),
+        json={"revision": second.json()["revision"]},
+    )
+    stale_ack = await client.post(
+        f"/internal/nodes/{node.id}/credentials/ack",
+        headers=auth(token),
+        json={"revision": first.json()["revision"]},
+    )
+    assert latest_ack.status_code == 200
+    assert stale_ack.status_code == 200
+    async with app.state.database.sessions() as session:
+        stored = await session.get(Node, node.id)
+        assert stored is not None
+        assert stored.applied_credentials_revision == second.json()["revision"]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_backend_to_agent_component_flow_applies_and_acknowledges(
     node_client: tuple[httpx.AsyncClient, object, Settings],
     tmp_path: Path,
@@ -543,3 +586,91 @@ async def test_backend_to_agent_component_flow_applies_and_acknowledges(
         assert stored.credentials_revision is not None
         assert stored.applied_credentials_revision == stored.credentials_revision
         assert stored.last_sync_at is not None
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_long_poll_returns_new_user_without_periodic_delay(
+    node_client: tuple[httpx.AsyncClient, object, Settings],
+) -> None:
+    client, app, settings = node_client
+    node, token = await create_node_identity(app, settings)
+    initial = await client.get(
+        f"/internal/nodes/{node.id}/credentials",
+        headers=auth(token),
+    )
+    acknowledged = await client.post(
+        f"/internal/nodes/{node.id}/credentials/ack",
+        headers=auth(token),
+        json={"revision": initial.json()["revision"]},
+    )
+    assert acknowledged.status_code == 200
+
+    waiting = asyncio.create_task(
+        client.get(
+            f"/internal/nodes/{node.id}/credentials?wait_seconds=3",
+            headers={**auth(token), "If-None-Match": initial.headers["etag"]},
+        )
+    )
+    await asyncio.sleep(0.1)
+    user, _password = await create_user(app, settings, username_sort=21, access="trial")
+    changed = await asyncio.wait_for(waiting, timeout=2)
+
+    assert changed.status_code == 200
+    assert changed.headers["etag"] != initial.headers["etag"]
+    assert [item["proxy_username"] for item in changed.json()["credentials"]] == [
+        user.proxy_username
+    ]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_watchdog_blocks_after_three_missed_ack_windows_and_reassigns(
+    node_client: tuple[httpx.AsyncClient, object, Settings],
+) -> None:
+    _client, app, settings = node_client
+    source, _source_token = await create_node_identity(app, settings)
+    target, _target_token = await create_node_identity(app, settings)
+    user, _password = await create_user(
+        app,
+        settings,
+        username_sort=22,
+        access="paid",
+        assigned_node_id=source.id,
+    )
+    now = datetime.now(UTC)
+    async with app.state.database.sessions.begin() as session:
+        stored_source = await session.get(Node, source.id)
+        stored_target = await session.get(Node, target.id)
+        assert stored_source is not None and stored_target is not None
+        stored_source.credentials_revision = "b" * 64
+        stored_source.applied_credentials_revision = "a" * 64
+        stored_source.applied_snapshot_valid_until = now + timedelta(minutes=5)
+        stored_source.snapshot_ack_deadline = now - timedelta(seconds=1)
+        stored_source.last_sync_at = now
+        stored_target.credentials_revision = "c" * 64
+        stored_target.applied_credentials_revision = "c" * 64
+        stored_target.applied_snapshot_valid_until = now + timedelta(minutes=5)
+        stored_target.last_sync_at = now
+
+    watchdog = NodeSnapshotWatchdog(app.state.database.sessions, settings)
+    for expected_failures in (1, 2):
+        result = await watchdog.inspect_once()
+        assert result.blocked_nodes == 0
+        async with app.state.database.sessions.begin() as session:
+            stored_source = await session.get(Node, source.id)
+            assert stored_source is not None
+            assert stored_source.snapshot_ack_failures == expected_failures
+            stored_source.snapshot_ack_deadline = datetime.now(UTC) - timedelta(seconds=1)
+
+    blocked = await watchdog.inspect_once()
+    assert blocked.blocked_nodes == 1
+    assert blocked.reassigned_users == 1
+    async with app.state.database.sessions() as session:
+        stored_source = await session.get(Node, source.id)
+        stored_user = await session.get(User, user.id)
+        assert stored_source is not None and stored_user is not None
+        assert stored_source.status == "blocked"
+        assert stored_source.snapshot_ack_failures == 3
+        assert stored_user.assigned_node_id == target.id
+        assert stored_user.node_selection_mode == "auto"

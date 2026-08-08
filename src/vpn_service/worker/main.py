@@ -8,6 +8,7 @@ from vpn_service.config import ProcessRole, Settings
 from vpn_service.logging import configure_logging
 from vpn_service.persistence.database import Database
 from vpn_service.worker.leader import WorkerAlreadyRunningError, WorkerLeader
+from vpn_service.worker.node_snapshot_watchdog import NodeSnapshotWatchdog
 from vpn_service.worker.outbox import OutboxWorker
 from vpn_service.worker.rate_limits import RateLimitPruner
 from vpn_service.worker.snapshot_issues import SnapshotIssuePruner
@@ -34,6 +35,9 @@ async def run() -> None:
                 tasks.create_task(RateLimitPruner(database.sessions, settings).run_forever(stop))
                 tasks.create_task(
                     SnapshotIssuePruner(database.sessions, settings).run_forever(stop)
+                )
+                tasks.create_task(
+                    NodeSnapshotWatchdog(database.sessions, settings).run_forever(stop)
                 )
     except WorkerAlreadyRunningError:
         logger.error("worker_leader_not_acquired")

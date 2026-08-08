@@ -121,6 +121,12 @@ class Settings(BaseSettings):
     )
     canary_min_successful_targets: Annotated[int, Field(ge=1)] = 1
     node_credential_snapshot_ttl_seconds: Annotated[int, Field(gt=0)] = 300
+    node_long_poll_max_wait_seconds: Annotated[int, Field(ge=1, le=30)] = 25
+    node_long_poll_check_interval_seconds: Annotated[float, Field(gt=0, le=5)] = 0.5
+    node_snapshot_ack_timeout_seconds: Annotated[int, Field(ge=1)] = 15
+    node_snapshot_max_missed_acks: Annotated[int, Field(ge=1, le=10)] = 3
+    node_snapshot_watch_interval_seconds: Annotated[float, Field(gt=0)] = 5
+    node_snapshot_heartbeat_timeout_seconds: Annotated[int, Field(ge=30)] = 75
     internal_api_rate_per_minute: Annotated[int, Field(gt=0)] = 120
     node_snapshot_issue_retention_seconds: Annotated[int, Field(ge=3600)] = 86_400
 
@@ -300,8 +306,14 @@ class Settings(BaseSettings):
             raise ValueError("production canary interval must be 60 seconds")
         if (
             self.node_credential_snapshot_ttl_seconds,
+            self.node_long_poll_max_wait_seconds,
+            self.node_long_poll_check_interval_seconds,
+            self.node_snapshot_ack_timeout_seconds,
+            self.node_snapshot_max_missed_acks,
+            self.node_snapshot_watch_interval_seconds,
+            self.node_snapshot_heartbeat_timeout_seconds,
             self.internal_api_rate_per_minute,
-        ) != (300, 120):
+        ) != (300, 25, 0.5, 15, 3, 5, 75, 120):
             raise ValueError("production node snapshot settings must match the MVP profile")
         if self.telegram_delivery_mode != "webhook":
             raise ValueError("production Telegram delivery mode must be webhook")

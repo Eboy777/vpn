@@ -64,11 +64,18 @@ class Node(Base):
             name="credentials_revision_format",
         ),
         CheckConstraint(
+            "credentials_source_fingerprint IS NULL "
+            "OR credentials_source_fingerprint ~ '^[0-9a-f]{64}$'",
+            name="credentials_source_fingerprint_format",
+        ),
+        CheckConstraint(
             "applied_credentials_revision IS NULL "
             "OR applied_credentials_revision ~ '^[0-9a-f]{64}$'",
             name="applied_revision_format",
         ),
+        CheckConstraint("snapshot_ack_failures >= 0", name="snapshot_ack_failures_nonnegative"),
         Index("ix_nodes_assignment", "status", "capacity_users", "id"),
+        Index("ix_nodes_snapshot_watchdog", "status", "snapshot_ack_deadline"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -91,8 +98,14 @@ class Node(Base):
         Boolean, nullable=False, default=False, server_default=text("false")
     )
     credentials_revision: Mapped[str | None] = mapped_column(String(64))
+    credentials_source_fingerprint: Mapped[str | None] = mapped_column(String(64))
     applied_credentials_revision: Mapped[str | None] = mapped_column(String(64))
     snapshot_valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    applied_snapshot_valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    snapshot_ack_deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    snapshot_ack_failures: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created_at_column()

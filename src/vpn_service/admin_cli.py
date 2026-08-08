@@ -177,8 +177,8 @@ async def _activate_node(database: Database, args: argparse.Namespace) -> dict[s
             or current_token is None
             or node.credentials_revision is None
             or node.applied_credentials_revision != node.credentials_revision
-            or node.snapshot_valid_until is None
-            or node.snapshot_valid_until <= now
+            or node.applied_snapshot_valid_until is None
+            or node.applied_snapshot_valid_until <= now
         ):
             raise RuntimeError("warming node requires a current token and fresh applied snapshot")
         node.status = NodeStatus.ACTIVE.value

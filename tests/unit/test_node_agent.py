@@ -81,6 +81,23 @@ def test_agent_settings_reject_short_canary_password(tmp_path: Path) -> None:
         )
 
 
+def test_agent_settings_require_http_timeout_beyond_long_poll(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError, match="timeout must exceed long poll"):
+        NodeAgentSettings(
+            control_api_base_url="https://primary.example.test",
+            node_id=uuid.uuid4(),
+            node_credentials_token="N" * 43,
+            node_sync_timeout_seconds=20,
+            node_long_poll_wait_seconds=20,
+            node_sync_state_path=tmp_path / "state.json",
+            gost_config_path=tmp_path / "auth.txt",
+            gost_config_staging_path=tmp_path / "auth.staging",
+            gost_canary_proxy_username="canary",
+            gost_canary_proxy_password="C" * 32,
+            gost_canary_credential_version="v1",
+        )
+
+
 @pytest.mark.asyncio
 async def test_agent_atomically_applies_snapshot_and_acknowledges(tmp_path: Path) -> None:
     node_id = uuid.uuid4()
@@ -120,6 +137,7 @@ async def test_agent_atomically_applies_snapshot_and_acknowledges(tmp_path: Path
     assert state.failed_closed is False
     assert [request.method for request in requests] == ["GET", "POST"]
     assert all(request.headers["authorization"] == "Bearer " + "N" * 43 for request in requests)
+    assert requests[0].url.params["wait_seconds"] == "20"
 
 
 @pytest.mark.asyncio

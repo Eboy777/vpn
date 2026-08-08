@@ -27,8 +27,9 @@ _ETAG = re.compile(r'^"sha256:[0-9a-f]{64}"$')
 @router.get("/{node_id}/credentials", response_model=NodeCredentialsSnapshotResponse)
 async def credentials_snapshot(request: Request, node_id: str) -> Response:
     parsed_node_id = _canonical_node_id(node_id)
-    if request.query_params or await request.body() or "content-type" in request.headers:
+    if await request.body() or "content-type" in request.headers:
         raise ApplicationError(400, "INVALID_REQUEST", "Request validation failed")
+    wait_seconds = _long_poll_wait_seconds(request)
     if_none_match = request.headers.get("if-none-match")
     if if_none_match is not None and _ETAG.fullmatch(if_none_match) is None:
         raise ApplicationError(
@@ -41,6 +42,7 @@ async def credentials_snapshot(request: Request, node_id: str) -> Response:
         await _authenticate(request),
         requested_node_id=parsed_node_id,
         if_none_match=if_none_match,
+        wait_seconds=wait_seconds,
     )
     headers = no_store_headers(
         {
@@ -119,3 +121,18 @@ def _service(request: Request) -> NodeCredentialsService:
     if service is None:
         raise ApplicationError(503, "SERVICE_UNAVAILABLE", "Service is unavailable")
     return service
+
+
+def _long_poll_wait_seconds(request: Request) -> int:
+    items = list(request.query_params.multi_items())
+    if not items:
+        return 0
+    if len(items) != 1 or items[0][0] != "wait_seconds":
+        raise ApplicationError(400, "INVALID_REQUEST", "Request validation failed")
+    raw_value = items[0][1]
+    if re.fullmatch(r"0|[1-9][0-9]?", raw_value) is None:
+        raise ApplicationError(400, "INVALID_REQUEST", "Request validation failed")
+    value = int(raw_value)
+    if value > request.app.state.settings.node_long_poll_max_wait_seconds:
+        raise ApplicationError(400, "INVALID_REQUEST", "Request validation failed")
+    return value

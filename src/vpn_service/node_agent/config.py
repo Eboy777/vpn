@@ -21,9 +21,10 @@ class NodeAgentSettings(BaseSettings):
     control_api_fallback_urls_json: list[AnyHttpUrl] = Field(default_factory=list)
     node_id: uuid.UUID
     node_credentials_token: SecretStr
-    node_sync_interval_seconds: Annotated[float, Field(gt=0)] = 30
-    node_sync_timeout_seconds: Annotated[float, Field(gt=0)] = 15
-    node_sync_jitter_seconds: Annotated[float, Field(ge=0)] = 5
+    node_sync_interval_seconds: Annotated[float, Field(gt=0)] = 2
+    node_sync_timeout_seconds: Annotated[float, Field(gt=0)] = 30
+    node_sync_jitter_seconds: Annotated[float, Field(ge=0)] = 1
+    node_long_poll_wait_seconds: Annotated[int, Field(ge=1, le=25)] = 20
     node_stale_snapshot_policy: Literal["fail_closed"] = "fail_closed"
     node_sync_state_path: Path
     gost_config_path: Path
@@ -63,6 +64,8 @@ class NodeAgentSettings(BaseSettings):
                 raise ValueError(f"{name} must be an absolute path")
         if self.gost_config_path == self.gost_config_staging_path:
             raise ValueError("GOST staging and active paths must differ")
+        if self.node_sync_timeout_seconds <= self.node_long_poll_wait_seconds:
+            raise ValueError("node sync timeout must exceed long poll wait")
         return self
 
     @property
