@@ -4,10 +4,9 @@ x-app: &app
     args:
       INSTALL_DEV: "false"
   env_file:
-    - ${VPN_ENV_FILE:-.env.example}
-  depends_on:
-    postgres:
-      condition: service_healthy
+    - path: ${VPN_ENV_FILE:-.env.example}
+    - path: .env
+      required: false
   restart: "no"
 
 services:
@@ -29,9 +28,30 @@ services:
     networks:
       - private
 
+  postgres-test:
+    image: postgres:16-alpine
+    profiles: ["test"]
+    environment:
+      POSTGRES_DB: vpn_test
+      POSTGRES_USER: vpn
+      POSTGRES_PASSWORD: vpn-test-only
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vpn -d vpn_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: "no"
+    networks:
+      - private
+
   migrate:
     <<: *app
     command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - private
 
@@ -53,6 +73,8 @@ services:
     command: ["python", "-m", "vpn_service.worker.main"]
     environment:
       PROCESS_ROLE: worker
+      # Local development uses the Bot API directly; production compose stays webhook-only.
+      TELEGRAM_DELIVERY_MODE: ${TELEGRAM_DELIVERY_MODE:-polling}
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,10 +108,12 @@ services:
     environment:
       APP_ENV: test
       PROCESS_ROLE: api
-      DATABASE_URL: postgresql+asyncpg://vpn:vpn-local-only@postgres:5432/vpn
-      TEST_DATABASE_URL: postgresql+asyncpg://vpn:vpn-local-only@postgres:5432/vpn
+      DATABASE_URL: postgresql+asyncpg://vpn:vpn-test-only@postgres-test:5432/vpn_test
+      TEST_DATABASE_URL: postgresql+asyncpg://vpn:vpn-test-only@postgres-test:5432/vpn_test
+    volumes:
+      - ./deploy:/app/deploy:ro
     depends_on:
-      postgres:
+      postgres-test:
         condition: service_healthy
     networks:
       - private

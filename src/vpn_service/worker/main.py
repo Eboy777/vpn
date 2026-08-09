@@ -4,6 +4,8 @@ import asyncio
 import logging
 import signal
 
+from vpn_service.application.pairing import PairingService
+from vpn_service.application.telegram_bot import TelegramBotService
 from vpn_service.config import ProcessRole, Settings
 from vpn_service.external.telegram import TelegramBotClient
 from vpn_service.logging import configure_logging
@@ -14,6 +16,7 @@ from vpn_service.worker.outbox import OutboxWorker
 from vpn_service.worker.rate_limits import RateLimitPruner
 from vpn_service.worker.snapshot_issues import SnapshotIssuePruner
 from vpn_service.worker.subscription_reminders import SubscriptionReminderWorker
+from vpn_service.worker.telegram_polling import TelegramPollingWorker
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,8 @@ async def run() -> None:
     configure_logging(settings.log_level, settings.log_format)
     database = Database(settings)
     telegram = TelegramBotClient(settings)
+    pairing = PairingService(database.sessions, settings)
+    telegram_bot = TelegramBotService(database.sessions, settings, pairing)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for signal_name in (signal.SIGINT, signal.SIGTERM):
@@ -51,6 +56,10 @@ async def run() -> None:
                 tasks.create_task(
                     SubscriptionReminderWorker(database.sessions, settings).run_forever(stop)
                 )
+                if settings.telegram_delivery_mode == "polling":
+                    tasks.create_task(
+                        TelegramPollingWorker(telegram_bot, telegram).run_forever(stop)
+                    )
     except WorkerAlreadyRunningError:
         logger.error("worker_leader_not_acquired")
         raise

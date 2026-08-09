@@ -21,6 +21,7 @@ from vpn_service.application.telegram_bot import (
 from vpn_service.config import Settings
 from vpn_service.external.telegram import TelegramBotClient, TelegramDeliveryError
 from vpn_service.http.schemas import TelegramUpdateRequest
+from vpn_service.worker.telegram_polling import TelegramPollingWorker
 
 
 def test_bot_copy_and_keyboards_follow_the_approved_scenarios(
@@ -87,6 +88,31 @@ async def test_telegram_client_sends_only_allowlisted_methods(
         await client.call("getUpdates", {})
 
 
+@pytest.mark.asyncio
+async def test_telegram_client_prepares_and_reads_long_polling_updates(
+    settings_factory: Callable[..., Settings],
+) -> None:
+    methods: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        method = request.url.path.rsplit("/", 1)[-1]
+        methods.append(method)
+        result = [] if method == "getUpdates" else True
+        return httpx.Response(200, json={"ok": True, "result": result})
+
+    client = TelegramBotClient(
+        settings_factory(),
+        transport=httpx.MockTransport(handler),
+        api_base_url="https://telegram.example.test",
+    )
+
+    await client.prepare_polling()
+    updates = await client.get_updates(offset=42, timeout_seconds=1)
+
+    assert updates == []
+    assert methods == ["deleteWebhook", "getUpdates"]
+
+
 class _FakeTelegramBotService:
     def __init__(self) -> None:
         self.updates = []
@@ -94,6 +120,30 @@ class _FakeTelegramBotService:
     async def process_update(self, update):
         self.updates.append(update)
         return "processed"
+
+
+@pytest.mark.asyncio
+async def test_polling_worker_processes_supported_updates_and_skips_poison_update() -> None:
+    service = _FakeTelegramBotService()
+    worker = TelegramPollingWorker(service, object())  # type: ignore[arg-type]
+    valid = {
+        "update_id": 10,
+        "message": {
+            "message_id": 10,
+            "date": 1_786_000_000,
+            "from": {"id": 7, "is_bot": False, "first_name": "Test"},
+            "chat": {"id": 7, "type": "private"},
+            "text": "/start",
+        },
+    }
+
+    offset = await worker._process_batch(  # noqa: SLF001
+        [valid, {"update_id": 11, "channel_post": {}}],
+        offset=None,
+    )
+
+    assert offset == 12
+    assert [update.update_id for update in service.updates] == [10]
 
 
 @pytest.mark.asyncio
