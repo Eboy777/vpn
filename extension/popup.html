@@ -55,8 +55,11 @@
           <div><span>Время подключения</span><strong id="connection-time">00:00</strong></div>
           <div><span>Статус подключения</span><i class="status-dot" id="connection-dot"></i></div>
           <div class="server-row">
-            <span class="server-label">Выбрать сервер</span>
-            <button class="node-button" id="node-select-button" data-action="locations" type="button"><strong id="node-name">—</strong></button>
+            <button class="server-label-button" id="server-label-button" data-action="locations" type="button">Выбрать сервер:</button>
+            <button class="node-button" id="node-select-button" data-action="locations" type="button">
+              <span class="node-flag" id="node-flag" aria-hidden="true"></span>
+              <strong id="node-name">—</strong>
+            </button>
           </div>
         </div>
         <article class="access-card">

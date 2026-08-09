@@ -181,16 +181,24 @@ function renderDashboard() {
     : waiting ? "Остановить" : "Подключиться";
   document.querySelector("#connection-dot").classList.toggle("connected", connected);
   const canSelectNode = Boolean(status?.access?.can_select_node);
+  const serverLabelButton = document.querySelector("#server-label-button");
   const nodeButton = document.querySelector("#node-select-button");
+  const node = status?.vpn?.node;
   document.querySelector("#node-name").textContent = canSelectNode
-    ? status?.vpn?.node?.name || "Автоматически"
+    ? node?.name || "Автоматически"
     : "Автоматически";
-  nodeButton.dataset.action = canSelectNode ? "locations" : "tariffs";
-  nodeButton.classList.toggle("upsell", !canSelectNode);
-  nodeButton.title = canSelectNode
+  document.querySelector("#node-flag").textContent = canSelectNode
+    ? countryFlag(node?.country_code)
+    : "";
+  const serverAction = canSelectNode ? "locations" : "tariffs";
+  const serverTitle = canSelectNode
     ? "Открыть выбор сервера"
     : "Выбор сервера доступен по подписке";
-  nodeButton.setAttribute("aria-label", nodeButton.title);
+  for (const button of [serverLabelButton, nodeButton]) {
+    button.dataset.action = serverAction;
+    button.title = serverTitle;
+    button.setAttribute("aria-label", serverTitle);
+  }
   if (!viewModel.lastError && status?.vpn?.unavailable_reason) {
     const messages = {
       ACCESS_EXPIRED: "Доступ закончился. Продлите подписку.",
@@ -268,6 +276,14 @@ function formatDate(value) {
 
 function twoDigits(value) {
   return String(value).padStart(2, "0");
+}
+
+function countryFlag(countryCode) {
+  const code = String(countryCode || "").toUpperCase();
+  if (!/^[A-Z]{2}$/.test(code)) return "";
+  return [...code]
+    .map((character) => String.fromCodePoint(127397 + character.charCodeAt(0)))
+    .join("");
 }
 
 async function send(type, payload = {}) {

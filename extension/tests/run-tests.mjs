@@ -246,12 +246,15 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(html.includes("Unblock your digital world"), false);
   assert.equal(html.includes("Device ID"), false);
   assert.equal(html.includes("Пользовательское соглашение"), true);
-  assert.equal(html.includes("Выбрать сервер"), true);
+  assert.equal(html.includes("Выбрать сервер:"), true);
   assert.equal(html.includes("Тариф Flow"), true);
   assert.equal(html.includes("299 ₽ / 30 дней"), true);
   assert.equal(html.includes("149"), false);
   assert.equal(css.includes("border: 1px solid rgba(255,255,255,.38)"), true);
-  assert.equal(script.includes('nodeButton.dataset.action = canSelectNode ? "locations" : "tariffs"'), true);
+  assert.equal(css.includes("border-radius: 0"), true);
+  assert.equal(css.includes("justify-content: flex-end"), true);
+  assert.equal(script.includes('const serverAction = canSelectNode ? "locations" : "tariffs"'), true);
+  assert.equal(script.includes("countryFlag(node?.country_code)"), true);
 });
 
 test("manifest has only the required MV3 permissions and local popup code", async () => {
