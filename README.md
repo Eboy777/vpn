@@ -33,7 +33,14 @@
 
 - `POST /api/pairing/init` — создаёт или безопасно перезапускает pairing устройства;
 - `GET /api/pairing/status` — возвращает pending либо новый device token после привязки;
-- `POST /integrations/telegram/webhook/{path_secret}` — идемпотентно обрабатывает private `/start`;
+- `POST /integrations/telegram/webhook/{path_secret}` — идемпотентно обрабатывает private messages,
+  callback-кнопки и pairing `/start`;
+- Telegram-бот Virgo: приветствие, профиль, постоянное нижнее меню, динамический хаб подключения,
+  тарифный экран, FAQ через редактирование сообщений и deep-link в поддержку;
+- ответы Telegram доставляются worker-ом через transactional outbox с повторами, а напоминания об
+  окончании подписки создаются за 3 дня и за 1 день без дублей;
+- телефонный VLESS/3X-UI/Marzban сценарий и кнопка оплаты отображаются как явные пустышки до
+  подключения соответствующих адаптеров;
 - единственный 24-часовой trial на Telegram-пользователя, лимит устройств и автоматическое назначение active-ноды;
 - HMAC-SHA-256 для токенов, AES-256-GCM для proxy-пароля и общие PostgreSQL rate limits.
 - `GET /api/status` — проверяет доступ, выполняет failover и выдаёт credentials только разрешённому устройству;

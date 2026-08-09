@@ -1,0 +1,180 @@
+from __future__ import annotations
+
+from collections.abc import Callable
+from datetime import UTC, datetime
+
+import httpx
+import pytest
+
+from vpn_service.app import create_app
+from vpn_service.application.telegram_bot import (
+    ProfileView,
+    TelegramBotService,
+    _is_pairing_start,
+    profile_keyboard,
+    profile_text,
+    reply_keyboard,
+    tariff_price,
+    tariffs_keyboard,
+    tariffs_text,
+)
+from vpn_service.config import Settings
+from vpn_service.external.telegram import TelegramBotClient, TelegramDeliveryError
+from vpn_service.http.schemas import TelegramUpdateRequest
+
+
+def test_bot_copy_and_keyboards_follow_the_approved_scenarios(
+    settings_factory: Callable[..., Settings],
+) -> None:
+    settings = settings_factory()
+    guest = ProfileView(
+        telegram_id=123456789,
+        tariff_name=None,
+        access_kind=None,
+        expires_at=None,
+        remaining_days=None,
+    )
+    expires_at = datetime(2026, 9, 9, tzinfo=UTC)
+    active = ProfileView(
+        telegram_id=123456789,
+        tariff_name="Flow",
+        access_kind="paid",
+        expires_at=expires_at,
+        remaining_days=30,
+    )
+
+    assert "❌ Тариф: Подписка не активна" in profile_text(guest)
+    assert "🚀 Тариф: Flow (Активен)" in profile_text(active)
+    assert "09.09.2026" in profile_text(active)
+    assert profile_keyboard(guest, settings)["inline_keyboard"][0][0]["callback_data"] == (
+        "menu:tariffs"
+    )
+    assert profile_keyboard(active, settings)["inline_keyboard"][0][0]["callback_data"] == (
+        "phone:setup"
+    )
+    assert reply_keyboard()["keyboard"] == [
+        [{"text": "⚡ Подключить VPN"}],
+        [{"text": "👤 Мой профиль"}, {"text": "💬 Поддержка"}],
+    ]
+    assert "Flow" in tariffs_text(settings)
+    assert tariff_price(settings.tariffs_json["vpn_30d"]) == "299 ₽"
+    assert tariffs_keyboard(settings)["inline_keyboard"][-1][0]["callback_data"] == (
+        "menu:profile"
+    )
+
+
+@pytest.mark.asyncio
+async def test_telegram_client_sends_only_allowlisted_methods(
+    settings_factory: Callable[..., Settings],
+) -> None:
+    requests: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 7}})
+
+    client = TelegramBotClient(
+        settings_factory(),
+        transport=httpx.MockTransport(handler),
+        api_base_url="https://telegram.example.test",
+    )
+    result = await client.call("sendMessage", {"chat_id": 1, "text": "hello"})
+
+    assert result == {"message_id": 7}
+    assert requests[0].url.path.endswith("/sendMessage")
+    assert requests[0].headers["content-type"] == "application/json"
+    with pytest.raises(TelegramDeliveryError, match="unsupported"):
+        await client.call("getUpdates", {})
+
+
+class _FakeTelegramBotService:
+    def __init__(self) -> None:
+        self.updates = []
+
+    async def process_update(self, update):
+        self.updates.append(update)
+        return "processed"
+
+
+@pytest.mark.asyncio
+async def test_webhook_accepts_message_and_callback_updates(
+    settings_factory: Callable[..., Settings],
+) -> None:
+    async def probe() -> bool:
+        return True
+
+    settings = settings_factory()
+    app = create_app(settings, database_probe=probe)
+    service = _FakeTelegramBotService()
+    app.state.telegram_bot_service = service
+    path = (
+        "/integrations/telegram/webhook/"
+        + settings.telegram_webhook_path_secret.get_secret_value()  # type: ignore[union-attr]
+    )
+    headers = {
+        "X-Telegram-Bot-Api-Secret-Token": (
+            settings.telegram_webhook_secret.get_secret_value()  # type: ignore[union-attr]
+        )
+    }
+    user = {"id": 123456789, "is_bot": False, "first_name": "Test"}
+    message = {
+        "message_id": 10,
+        "date": 1_786_000_000,
+        "from": user,
+        "chat": {"id": 123456789, "type": "private"},
+        "text": "👤 Мой профиль",
+    }
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        message_response = await client.post(
+            path,
+            headers=headers,
+            json={"update_id": 1, "message": message},
+        )
+        callback_response = await client.post(
+            path,
+            headers=headers,
+            json={
+                "update_id": 2,
+                "callback_query": {
+                    "id": "callback-1",
+                    "from": user,
+                    "message": {
+                        **message,
+                        "from": {
+                            "id": 999,
+                            "is_bot": True,
+                            "first_name": "Virgo",
+                        },
+                    },
+                    "data": "menu:tariffs",
+                },
+            },
+        )
+
+    assert message_response.status_code == 200
+    assert callback_response.status_code == 200
+    assert service.updates[0].message.text == "👤 Мой профиль"
+    assert service.updates[1].callback_query.data == "menu:tariffs"
+
+
+def test_pairing_start_detection_requires_separate_43_character_token() -> None:
+    update = TelegramUpdateRequest.model_validate(
+        {
+            "update_id": 1,
+            "message": {
+                "message_id": 1,
+                "date": 1_786_000_000,
+                "from": {"id": 7, "is_bot": False, "first_name": "Test"},
+                "chat": {"id": 7, "type": "private"},
+                "text": f"/start {'a' * 43}",
+                "entities": [{"type": "bot_command", "offset": 0, "length": 6}],
+            },
+        }
+    )
+
+    assert TelegramBotService is not None
+    assert _is_pairing_start(update)

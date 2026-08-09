@@ -17,6 +17,7 @@ _SENSITIVE_KEY = re.compile(
 _BEARER = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+")
 _PAIRING_QUERY = re.compile(r"(?i)([?&]start=)[^&#\s]+")
 _WEBHOOK_PATH = re.compile(r"(/integrations/telegram/webhook/)[^/?#\s]+")
+_TELEGRAM_BOT_API_PATH = re.compile(r"(?i)(api\.telegram\.org/bot)[^/\s]+")
 
 
 def redact(value: Any, *, key: str | None = None) -> Any:
@@ -30,6 +31,7 @@ def redact(value: Any, *, key: str | None = None) -> Any:
         value = _BEARER.sub(f"Bearer {REDACTED}", value)
         value = _PAIRING_QUERY.sub(rf"\1{REDACTED}", value)
         value = _WEBHOOK_PATH.sub(rf"\1{REDACTED}", value)
+        value = _TELEGRAM_BOT_API_PATH.sub(rf"\1{REDACTED}", value)
     return value
 
 

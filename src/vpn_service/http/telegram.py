@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.responses import Response
 
-from vpn_service.application.pairing import PairingService
+from vpn_service.application.telegram_bot import TelegramBotService
 from vpn_service.http.schemas import TelegramUpdateRequest
 
 router = APIRouter(prefix="/integrations/telegram", tags=["telegram"])
@@ -53,11 +53,11 @@ async def telegram_webhook(path_secret: str, request: Request) -> Response:
     except (UnicodeDecodeError, json.JSONDecodeError, ValidationError, TypeError):
         return Response(status_code=400, headers=_NO_STORE)
 
-    service: PairingService | None = request.app.state.pairing_service
+    service: TelegramBotService | None = request.app.state.telegram_bot_service
     if service is None:
         return Response(status_code=503, headers=_NO_STORE)
     try:
-        await service.process_telegram_update(payload)
+        await service.process_update(payload)
     except SQLAlchemyError:
         logger.exception("telegram_webhook_database_error")
         return Response(status_code=503, headers=_NO_STORE)

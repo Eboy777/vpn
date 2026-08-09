@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from vpn_service.app import create_app
 from vpn_service.config import Settings
 from vpn_service.domain.errors import ApplicationError
-from vpn_service.persistence.models import Device, Node, TelegramUpdateEvent, User
+from vpn_service.persistence.models import Device, Node, OutboxEvent, TelegramUpdateEvent, User
 from vpn_service.security.credentials import ProxyCredentialsCipher
 from vpn_service.security.tokens import TokenHasher
 
@@ -565,3 +565,97 @@ async def test_contract_errors_cors_expiry_and_webhook_auth(
     )
     assert wrong_secret.status_code == 401
     assert wrong_secret.content == b""
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_bot_start_and_callback_are_registered_and_queued_once(
+    pairing_client: tuple[httpx.AsyncClient, object, Settings],
+) -> None:
+    client, app, settings = pairing_client
+    telegram_id = uuid.uuid4().int % 8_000_000_000 + 60_000_000_000
+    update_id = uuid.uuid4().int % 8_000_000_000 + 70_000_000_000
+    path = (
+        "/integrations/telegram/webhook/"
+        + settings.telegram_webhook_path_secret.get_secret_value()  # type: ignore[union-attr]
+    )
+    headers = {
+        "X-Telegram-Bot-Api-Secret-Token": (
+            settings.telegram_webhook_secret.get_secret_value()  # type: ignore[union-attr]
+        )
+    }
+    start_update = telegram_update(update_id, telegram_id, "unused", text="/start")
+
+    first = await client.post(path, headers=headers, json=start_update)
+    replay = await client.post(path, headers=headers, json=start_update)
+
+    assert first.status_code == 200
+    assert replay.status_code == 200
+    async with app.state.database.sessions() as session:
+        user = await session.scalar(select(User).where(User.telegram_id == telegram_id))
+        assert user is not None
+        assert user.trial_expires_at is None
+        start_actions = (
+            await session.scalars(
+                select(OutboxEvent).where(
+                    OutboxEvent.idempotency_key.like(f"telegram:update:{update_id}:action:%")
+                )
+            )
+        ).all()
+        assert len(start_actions) == 3
+
+    callback_update = {
+        "update_id": update_id + 1,
+        "callback_query": {
+            "id": f"callback-{update_id}",
+            "from": {
+                "id": telegram_id,
+                "is_bot": False,
+                "first_name": "Test",
+            },
+            "message": {
+                "message_id": update_id,
+                "date": 1_785_986_120,
+                "from": {
+                    "id": 999,
+                    "is_bot": True,
+                    "first_name": "Virgo",
+                },
+                "chat": {"id": telegram_id, "type": "private"},
+                "text": "👤 Мой профиль",
+            },
+            "data": "menu:tariffs",
+        },
+    }
+    callback = await client.post(path, headers=headers, json=callback_update)
+
+    assert callback.status_code == 200
+    async with app.state.database.sessions() as session:
+        callback_actions = (
+            await session.scalars(
+                select(OutboxEvent).where(
+                    OutboxEvent.idempotency_key.like(
+                        f"telegram:update:{update_id + 1}:action:%"
+                    )
+                )
+            )
+        ).all()
+        assert {event.payload_json["method"] for event in callback_actions} == {
+            "answerCallbackQuery",
+            "editMessageText",
+        }
+
+    pairing = await initialize(client, uuid.uuid4())
+    paired = await bind(
+        client,
+        settings,
+        update_id=update_id + 2,
+        telegram_id=telegram_id,
+        token=start_token(pairing),
+    )
+
+    assert paired.status_code == 200
+    async with app.state.database.sessions() as session:
+        user = await session.scalar(select(User).where(User.telegram_id == telegram_id))
+        assert user is not None
+        assert user.trial_expires_at is not None

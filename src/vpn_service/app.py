@@ -10,6 +10,7 @@ from vpn_service.application.device_auth import DeviceAuthenticator
 from vpn_service.application.health import DatabaseProbe
 from vpn_service.application.node_credentials import NodeAuthenticator, NodeCredentialsService
 from vpn_service.application.pairing import PairingService
+from vpn_service.application.telegram_bot import TelegramBotService
 from vpn_service.config import Settings
 from vpn_service.http.access import router as access_router
 from vpn_service.http.contract import RequestContractMiddleware
@@ -52,8 +53,14 @@ def create_app(
     app.state.settings = resolved_settings
     app.state.database = database
     app.state.database_probe = database_probe or database.probe  # type: ignore[union-attr]
-    app.state.pairing_service = (
+    pairing_service = (
         PairingService(database.sessions, resolved_settings) if database is not None else None
+    )
+    app.state.pairing_service = pairing_service
+    app.state.telegram_bot_service = (
+        TelegramBotService(database.sessions, resolved_settings, pairing_service)
+        if database is not None and pairing_service is not None
+        else None
     )
     app.state.device_authenticator = (
         DeviceAuthenticator(database.sessions, resolved_settings) if database is not None else None

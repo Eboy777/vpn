@@ -48,3 +48,12 @@ def test_telegram_start_token_is_removed_from_urls() -> None:
 
     assert sanitized == "https://t.me/example_vpn_bot?start=[REDACTED]"
     assert "visible-start-token" not in sanitized
+
+
+def test_telegram_bot_api_token_is_removed_from_urls() -> None:
+    value = "https://api.telegram.org/bot123456789:visible-secret/sendMessage"
+
+    sanitized = redact(value)
+
+    assert sanitized == "https://api.telegram.org/bot[REDACTED]/sendMessage"
+    assert "visible-secret" not in sanitized

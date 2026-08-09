@@ -203,6 +203,7 @@ class PairingService:
                 _finish_telegram_event(event, now, "token_invalid")
                 return "token_invalid"
             assert candidate_device is not None
+            assert update.message is not None
 
             user, user_created = await self._lock_or_create_user(
                 session,
@@ -248,6 +249,10 @@ class PairingService:
                     hard_capacity=self._settings.node_assignment_hard_capacity,
                 )
                 user.assigned_node_id = selected_node.id if selected_node is not None else None
+            if user.trial_expires_at is None:
+                user.trial_expires_at = now + timedelta(
+                    seconds=self._settings.trial_duration_seconds
+                )
             device.user_id = user.id
             device.status = DeviceStatus.ACTIVE.value
             device.pairing_error_code = None
@@ -404,7 +409,7 @@ def _telegram_start_token(
     update: TelegramUpdateRequest,
     bot_username: str | None,
 ) -> str | None:
-    if bot_username is None:
+    if bot_username is None or update.message is None or update.message.text is None:
         return None
     text = update.message.text
     match = re.fullmatch(

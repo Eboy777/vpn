@@ -56,6 +56,9 @@ def settings_factory() -> Callable[..., Settings]:
             "telegram_webhook_public_base_url": "https://bot.example.test",
             "telegram_webhook_secret": "test-webhook-secret-at-least-32-chars",
             "telegram_webhook_path_secret": "test-path-secret-value-at-least-32-chars",
+            "telegram_channel_url": "https://t.me/example_vpn_channel",
+            "telegram_support_username": "example_vpn_support",
+            "chrome_web_store_url": "https://chromewebstore.google.com/",
         }
         if overrides.get("app_env") == "production":
             values.update(
@@ -75,6 +78,12 @@ def settings_factory() -> Callable[..., Settings]:
                     "telegram_webhook_public_base_url": "https://bot.vpn.example",
                     "telegram_webhook_secret": "production-webhook-secret-material-01",
                     "telegram_webhook_path_secret": "production-webhook-path-material-01",
+                    "telegram_channel_url": "https://t.me/vpn_service_channel",
+                    "telegram_support_username": "vpn_service_support",
+                    "chrome_web_store_url": (
+                        "https://chromewebstore.google.com/detail/virgo/"
+                        "abcdefghijklmnopabcdefghijklmnop"
+                    ),
                     "allowed_extension_origins_json": [
                         "chrome-extension://abcdefghijklmnopabcdefghijklmnop"
                     ],

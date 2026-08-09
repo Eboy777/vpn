@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class StrictRequest(BaseModel):
@@ -155,12 +155,17 @@ SignedInt64 = Annotated[int, Field(strict=True, ge=-(2**63), le=2**63 - 1)]
 NonNegativeInt64 = Annotated[int, Field(strict=True, ge=0, le=2**63 - 1)]
 
 
-class TelegramUser(BaseModel):
+class TelegramActor(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: SignedInt64
-    is_bot: Literal[False]
+    is_bot: bool
     first_name: Annotated[str, Field(min_length=1)]
+    username: Annotated[str, Field(min_length=1, max_length=32)] | None = None
+
+
+class TelegramUser(TelegramActor):
+    is_bot: Literal[False]
 
 
 class TelegramChat(BaseModel):
@@ -183,12 +188,30 @@ class TelegramMessage(BaseModel):
 
     message_id: SignedInt64
     date: SignedInt64
-    from_user: TelegramUser = Field(alias="from")
+    from_user: TelegramActor = Field(alias="from")
     chat: TelegramChat
-    text: Annotated[str, Field(min_length=1, max_length=4096)]
-    entities: Annotated[list[TelegramEntity], Field(min_length=1)]
+    text: Annotated[str, Field(min_length=1, max_length=4096)] | None = None
+    entities: list[TelegramEntity] = Field(default_factory=list)
+
+
+class TelegramCallbackQuery(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    id: Annotated[str, Field(min_length=1, max_length=128)]
+    from_user: TelegramUser = Field(alias="from")
+    message: TelegramMessage | None = None
+    data: Annotated[str, Field(min_length=1, max_length=64)] | None = None
 
 
 class TelegramUpdateRequest(StrictRequest):
     update_id: NonNegativeInt64
-    message: TelegramMessage
+    message: TelegramMessage | None = None
+    callback_query: TelegramCallbackQuery | None = None
+
+    @model_validator(mode="after")
+    def exactly_one_supported_update(self) -> TelegramUpdateRequest:
+        if (self.message is None) == (self.callback_query is None):
+            raise ValueError("exactly one of message or callback_query is required")
+        if self.message is not None and self.message.from_user.is_bot:
+            raise ValueError("bot-authored messages are not supported updates")
+        return self

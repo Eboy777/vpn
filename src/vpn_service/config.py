@@ -107,6 +107,11 @@ class Settings(BaseSettings):
     telegram_webhook_secret: SecretStr | None = None
     telegram_webhook_path_secret: SecretStr | None = None
     telegram_update_max_body_bytes: Annotated[int, Field(ge=1, le=1_048_576)] = 1_048_576
+    telegram_channel_url: AnyHttpUrl | None = None
+    telegram_support_username: str | None = None
+    chrome_web_store_url: AnyHttpUrl | None = None
+    vpn_brand_name: Annotated[str, Field(min_length=1, max_length=32)] = "Virgo"
+    subscription_reminder_poll_seconds: Annotated[int, Field(ge=60)] = 3600
 
     node_assignment_hard_capacity: bool = True
     node_block_failure_threshold: Annotated[int, Field(ge=1)] = 3
@@ -205,6 +210,10 @@ class Settings(BaseSettings):
             r"[A-Za-z0-9_]{5,32}", self.telegram_bot_username
         ):
             raise ValueError("TELEGRAM_BOT_USERNAME has an invalid format")
+        if self.telegram_support_username is not None and not re.fullmatch(
+            r"[A-Za-z0-9_]{5,32}", self.telegram_support_username
+        ):
+            raise ValueError("TELEGRAM_SUPPORT_USERNAME has an invalid format")
         if self.canary_min_successful_targets > len(self.canary_probe_urls_json):
             raise ValueError("canary target quorum exceeds configured targets")
         if len({url.host for url in self.canary_probe_urls_json}) < 2:
@@ -325,6 +334,9 @@ class Settings(BaseSettings):
             "TELEGRAM_WEBHOOK_PUBLIC_BASE_URL": self.telegram_webhook_public_base_url,
             "TELEGRAM_WEBHOOK_SECRET": self.telegram_webhook_secret,
             "TELEGRAM_WEBHOOK_PATH_SECRET": self.telegram_webhook_path_secret,
+            "TELEGRAM_CHANNEL_URL": self.telegram_channel_url,
+            "TELEGRAM_SUPPORT_USERNAME": self.telegram_support_username,
+            "CHROME_WEB_STORE_URL": self.chrome_web_store_url,
         }
         missing = [name for name, value in telegram_required.items() if value is None]
         if missing:
@@ -332,6 +344,13 @@ class Settings(BaseSettings):
         assert self.telegram_webhook_public_base_url is not None
         if not str(self.telegram_webhook_public_base_url).startswith("https://"):
             raise ValueError("production Telegram webhook URL must use HTTPS")
+        for name, url in (
+            ("TELEGRAM_CHANNEL_URL", self.telegram_channel_url),
+            ("CHROME_WEB_STORE_URL", self.chrome_web_store_url),
+        ):
+            assert url is not None
+            if not str(url).startswith("https://"):
+                raise ValueError(f"{name} must use HTTPS in production")
         for name, secret in (
             ("TELEGRAM_BOT_TOKEN", self.telegram_bot_token),
             ("TELEGRAM_WEBHOOK_SECRET", self.telegram_webhook_secret),
