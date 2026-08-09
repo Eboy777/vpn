@@ -185,8 +185,9 @@ class TelegramBotService:
             actions: list[TelegramAction] = []
             if created:
                 actions.append(
-                    _send(
+                    _send_photo(
                         message.chat.id,
+                        "welcome",
                         f"Привет, {first_name}! Это {self._settings.vpn_brand_name} — "
                         "быстрый и безопасный доступ в интернет.",
                         reply_markup={
@@ -235,11 +236,11 @@ class TelegramBotService:
         message_id = callback.message.message_id
         data = callback.data
         if data == "menu:profile":
-            actions.append(_edit_profile(chat_id, message_id, profile, self._settings))
+            actions.append(_send_profile(chat_id, profile, self._settings))
         elif data == "menu:connect":
             actions.append(_edit_connect_hub(chat_id, message_id, profile, self._settings))
         elif data == "menu:tariffs":
-            actions.append(_edit_tariffs(chat_id, message_id, self._settings))
+            actions.append(_send_tariffs(chat_id, self._settings))
         elif data == "support:list":
             actions.append(_edit_support(chat_id, message_id, profile.telegram_id, self._settings))
         elif data.startswith("faq:"):
@@ -365,17 +366,17 @@ def reply_keyboard() -> dict[str, Any]:
 
 
 def profile_text(profile: ProfileView) -> str:
-    lines = ["👤 Мой профиль", f"🆔 ID: {profile.telegram_id}"]
+    lines = ["👤 Мой профиль", "", f"ID: {profile.telegram_id}"]
     if not profile.has_access:
-        lines.append("❌ Тариф: Подписка не активна")
+        lines.append("Тариф: Подписка не активна")
         return "\n".join(lines)
     assert profile.tariff_name is not None
     assert profile.expires_at is not None
     assert profile.remaining_days is not None
     lines.extend(
         [
-            f"🚀 Тариф: {profile.tariff_name} (Активен)",
-            "📅 Действует до: "
+            f"Тариф: {profile.tariff_name} (Активен)",
+            "Действует до: "
             f"{profile.expires_at.astimezone(UTC).strftime('%d.%m.%Y')} "
             f"(осталось {profile.remaining_days} дн.)",
         ]
@@ -455,8 +456,9 @@ def _send_profile(
     *,
     ensure_reply_keyboard: bool = False,
 ) -> TelegramAction:
-    return _send(
+    return _send_photo(
         chat_id,
+        "profile",
         profile_text(profile),
         reply_markup=profile_keyboard(profile, settings),
         reply_keyboard_markup=reply_keyboard() if ensure_reply_keyboard else None,
@@ -478,6 +480,8 @@ def _send_connect_hub(
     settings: Settings,
 ) -> TelegramAction:
     text, markup = _connect_hub(profile, settings)
+    if not profile.has_access:
+        return _send_photo(chat_id, "welcome", text, reply_markup=markup)
     return _send(chat_id, text, reply_markup=markup)
 
 
@@ -585,6 +589,10 @@ def _edit_tariffs(chat_id: int, message_id: int, settings: Settings) -> Telegram
     return _edit(chat_id, message_id, tariffs_text(settings), tariffs_keyboard(settings))
 
 
+def _send_tariffs(chat_id: int, settings: Settings) -> TelegramAction:
+    return _send(chat_id, tariffs_text(settings), reply_markup=tariffs_keyboard(settings))
+
+
 def _edit_payment(
     chat_id: int,
     message_id: int,
@@ -647,6 +655,26 @@ def _send(
         params["reply_markup"] = reply_markup
         params["_reply_keyboard"] = reply_keyboard_markup
     return TelegramAction("sendMessage", params)
+
+
+def _send_photo(
+    chat_id: int,
+    photo_asset: str,
+    caption: str,
+    *,
+    reply_markup: dict[str, Any] | None = None,
+    reply_keyboard_markup: dict[str, Any] | None = None,
+) -> TelegramAction:
+    params: dict[str, Any] = {
+        "chat_id": chat_id,
+        "photo_asset": photo_asset,
+        "caption": caption,
+    }
+    if reply_markup is not None:
+        params["reply_markup"] = reply_markup
+    if reply_keyboard_markup is not None:
+        params["_reply_keyboard"] = reply_keyboard_markup
+    return TelegramAction("sendPhoto", params)
 
 
 def _edit(

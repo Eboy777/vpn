@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import json
+from importlib.resources import files
 from typing import Any
 
 import httpx
 
 from vpn_service.config import Settings
 
-_OUTBOX_METHODS = {"answerCallbackQuery", "editMessageText", "sendMessage"}
+_OUTBOX_METHODS = {"answerCallbackQuery", "editMessageText", "sendMessage", "sendPhoto"}
+_PHOTO_ASSETS = {
+    "profile": "assets/telegram/profile.png",
+    "welcome": "assets/telegram/welcome.png",
+}
 
 
 class TelegramDeliveryError(RuntimeError):
@@ -38,8 +44,31 @@ class TelegramBotClient:
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         if method not in _OUTBOX_METHODS:
             raise TelegramDeliveryError("unsupported Telegram Bot API method")
+        if method == "sendPhoto":
+            result = await self._request_photo(params, timeout_seconds=10.0)
+            return result if isinstance(result, dict) else {}
         result = await self._request(method, params, timeout_seconds=10.0)
         return result if isinstance(result, dict) else {}
+
+    async def _request_photo(
+        self,
+        params: dict[str, Any],
+        *,
+        timeout_seconds: float,
+    ) -> Any:
+        asset_name = params.get("photo_asset")
+        asset_path = _PHOTO_ASSETS.get(asset_name)
+        if asset_path is None:
+            raise TelegramDeliveryError("unsupported Telegram photo asset")
+
+        form = {key: _form_value(value) for key, value in params.items() if key != "photo_asset"}
+        photo = files("vpn_service").joinpath(asset_path)
+        return await self._request(
+            "sendPhoto",
+            form,
+            timeout_seconds=timeout_seconds,
+            files={"photo": (photo.name, photo.read_bytes(), "image/png")},
+        )
 
     async def prepare_polling(self) -> None:
         await self._request(
@@ -75,6 +104,7 @@ class TelegramBotClient:
         params: dict[str, Any],
         *,
         timeout_seconds: float,
+        files: dict[str, tuple[str, bytes, str]] | None = None,
     ) -> Any:
         if self._token is None:
             raise TelegramDeliveryError("Telegram bot token is not configured")
@@ -85,7 +115,10 @@ class TelegramBotClient:
                 transport=self._transport,
                 timeout=httpx.Timeout(timeout_seconds),
             ) as client:
-                response = await client.post(url, json=params)
+                if files is None:
+                    response = await client.post(url, json=params)
+                else:
+                    response = await client.post(url, data=params, files=files)
         except httpx.HTTPError as exc:
             raise TelegramDeliveryError("Telegram Bot API request failed") from exc
         if response.status_code != 200:
@@ -99,3 +132,9 @@ class TelegramBotClient:
         if not isinstance(body, dict) or body.get("ok") is not True:
             raise TelegramDeliveryError("Telegram Bot API rejected the request")
         return body.get("result")
+
+
+def _form_value(value: Any) -> str:
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    return str(value)

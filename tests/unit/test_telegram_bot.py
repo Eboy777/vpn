@@ -11,6 +11,8 @@ from vpn_service.application.telegram_bot import (
     ProfileView,
     TelegramBotService,
     _is_pairing_start,
+    _send_connect_hub,
+    _send_profile,
     profile_keyboard,
     profile_text,
     reply_keyboard,
@@ -44,8 +46,10 @@ def test_bot_copy_and_keyboards_follow_the_approved_scenarios(
         remaining_days=30,
     )
 
-    assert "❌ Тариф: Подписка не активна" in profile_text(guest)
-    assert "🚀 Тариф: Flow (Активен)" in profile_text(active)
+    assert profile_text(guest) == (
+        "👤 Мой профиль\n\nID: 123456789\nТариф: Подписка не активна"
+    )
+    assert "Тариф: Flow (Активен)" in profile_text(active)
     assert "09.09.2026" in profile_text(active)
     assert profile_keyboard(guest, settings)["inline_keyboard"][0][0]["callback_data"] == (
         "menu:tariffs"
@@ -61,6 +65,18 @@ def test_bot_copy_and_keyboards_follow_the_approved_scenarios(
     assert tariff_price(settings.tariffs_json["vpn_30d"]) == "299 ₽"
     assert tariffs_keyboard(settings)["inline_keyboard"][-1][0]["callback_data"] == (
         "menu:profile"
+    )
+
+    profile_action = _send_profile(123456789, guest, settings)
+    assert profile_action.method == "sendPhoto"
+    assert profile_action.params["photo_asset"] == "profile"
+    assert profile_action.params["caption"] == profile_text(guest)
+
+    connect_action = _send_connect_hub(123456789, guest, settings)
+    assert connect_action.method == "sendPhoto"
+    assert connect_action.params["photo_asset"] == "welcome"
+    assert connect_action.params["caption"] == (
+        "У вас нет активной подписки. Подключите тариф для доступа к VPN:"
     )
 
 
@@ -86,6 +102,45 @@ async def test_telegram_client_sends_only_allowlisted_methods(
     assert requests[0].headers["content-type"] == "application/json"
     with pytest.raises(TelegramDeliveryError, match="unsupported"):
         await client.call("getUpdates", {})
+
+
+@pytest.mark.asyncio
+async def test_telegram_client_uploads_allowlisted_photo_asset(
+    settings_factory: Callable[..., Settings],
+) -> None:
+    requests: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 8}})
+
+    client = TelegramBotClient(
+        settings_factory(),
+        transport=httpx.MockTransport(handler),
+        api_base_url="https://telegram.example.test",
+    )
+    result = await client.call(
+        "sendPhoto",
+        {
+            "chat_id": 1,
+            "photo_asset": "profile",
+            "caption": "👤 Мой профиль",
+            "reply_markup": {"inline_keyboard": []},
+        },
+    )
+
+    assert result == {"message_id": 8}
+    assert requests[0].url.path.endswith("/sendPhoto")
+    assert requests[0].headers["content-type"].startswith("multipart/form-data;")
+    assert b"profile.png" in requests[0].content
+    assert b"image/png" in requests[0].content
+    assert b"\x89PNG\r\n\x1a\n" in requests[0].content
+
+    with pytest.raises(TelegramDeliveryError, match="photo asset"):
+        await client.call(
+            "sendPhoto",
+            {"chat_id": 1, "photo_asset": "../../secret", "caption": "bad"},
+        )
 
 
 @pytest.mark.asyncio

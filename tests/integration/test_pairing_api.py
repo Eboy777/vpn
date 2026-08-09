@@ -642,7 +642,7 @@ async def test_bot_start_and_callback_are_registered_and_queued_once(
         ).all()
         assert {event.payload_json["method"] for event in callback_actions} == {
             "answerCallbackQuery",
-            "editMessageText",
+            "sendMessage",
         }
 
     pairing = await initialize(client, uuid.uuid4())
