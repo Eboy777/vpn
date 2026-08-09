@@ -41,6 +41,8 @@
 - транзакционное распределение по относительной загрузке с жёстким соблюдением `capacity_users`.
 - защищённые node snapshots с ETag, lease и идемпотентным подтверждением revision;
 - node sync-agent с атомарной заменой GOST auth-файла, rollback и fail-closed после lease;
+- hardening-шаблоны GOST-ноды: отдельный системный пользователь, запрет исходящих SSH/SMTP и
+  private/link-local сетей, лимиты скорости, запросов и соединений, idle timeout и локальные метрики;
 - безопасные `warming`/`quiescing` переходы для bootstrap и планового drain;
 - локальный `vpn-admin` для добавления нод и двухфазной ротации node token;
 - эталонный primary/fallback HTTP-клиент: переключение только при network/timeout и

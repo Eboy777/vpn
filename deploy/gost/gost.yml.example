@@ -1,9 +1,19 @@
 services:
   - name: vpn-https-proxy
     addr: ":443"
+    # Reject access to local/private infrastructure before GOST opens an upstream socket.
+    bypass: vpn-deny-private
+    # Conservative MVP defaults. Tune only after a measured load test.
+    limiter: vpn-bandwidth
+    rlimiter: vpn-request-rate
+    climiter: vpn-connections
     handler:
       type: http
       auther: vpn-users
+      metadata:
+        idleTimeout: 10m
+        limiterRefreshInterval: 30s
+        limiterCleanupInterval: 5m
     listener:
       type: tls
       tls:
@@ -15,3 +25,53 @@ authers:
     reload: 5s
     file:
       path: /var/lib/vpn-node/auth.txt
+
+# Blacklist private, loopback, link-local, documentation and multicast destinations. The
+# nftables policy repeats this check after DNS resolution, which also closes DNS-rebinding paths.
+bypasses:
+  - name: vpn-deny-private
+    matchers:
+      - 0.0.0.0/8
+      - 10.0.0.0/8
+      - 100.64.0.0/10
+      - 127.0.0.0/8
+      - 169.254.0.0/16
+      - 172.16.0.0/12
+      - 192.0.0.0/24
+      - 192.0.2.0/24
+      - 192.168.0.0/16
+      - 198.18.0.0/15
+      - 198.51.100.0/24
+      - 203.0.113.0/24
+      - 224.0.0.0/4
+      - 240.0.0.0/4
+      - ::/128
+      - ::1/128
+      - fc00::/7
+      - fe80::/10
+      - ff00::/8
+
+# 25 MB/s is approximately 200 Mbit/s in each direction for one proxied connection.
+limiters:
+  - name: vpn-bandwidth
+    limits:
+      - "$$ 25MB 25MB"
+
+# Requests are limited globally and per source IP. Authentication is still mandatory.
+rlimiters:
+  - name: vpn-request-rate
+    limits:
+      - "$ 1000"
+      - "$$ 30"
+
+# Keep a single abusive client from exhausting all node file descriptors.
+climiters:
+  - name: vpn-connections
+    limits:
+      - "$ 5000"
+      - "$$ 128"
+
+# Loopback-only aggregate metrics for capacity and abuse alerts. Never expose this port publicly.
+metrics:
+  addr: "127.0.0.1:9000"
+  path: /metrics

@@ -6,6 +6,9 @@ from pathlib import Path
 
 from vpn_service.node_agent.models import AgentState, SnapshotCredential
 
+AUTH_FILE_MODE = 0o640
+PRIVATE_FILE_MODE = 0o600
+
 
 def render_auth_file(
     credentials: list[SnapshotCredential],
@@ -41,15 +44,15 @@ class AtomicFiles:
     def replace_auth(self, content: bytes) -> bytes | None:
         previous = self.active_path.read_bytes() if self.active_path.exists() else None
         if previous is not None:
-            self._atomic_write(self.backup_path, previous, mode=0o600)
-        self._atomic_write(self.staging_path, content, mode=0o600)
+            self._atomic_write(self.backup_path, previous, mode=AUTH_FILE_MODE)
+        self._atomic_write(self.staging_path, content, mode=AUTH_FILE_MODE)
         os.replace(self.staging_path, self.active_path)
         self._fsync_directory(self.active_path.parent)
         return previous
 
     def restore_auth(self, previous: bytes | None) -> None:
         content = previous if previous is not None else b""
-        self._atomic_write(self.staging_path, content, mode=0o600)
+        self._atomic_write(self.staging_path, content, mode=AUTH_FILE_MODE)
         os.replace(self.staging_path, self.active_path)
         self._fsync_directory(self.active_path.parent)
 
@@ -64,7 +67,7 @@ class AtomicFiles:
             separators=(",", ":"),
             sort_keys=True,
         ).encode()
-        self._atomic_write(self.state_path, payload, mode=0o600)
+        self._atomic_write(self.state_path, payload, mode=PRIVATE_FILE_MODE)
 
     @staticmethod
     def _atomic_write(path: Path, content: bytes, *, mode: int) -> None:

@@ -219,6 +219,22 @@ async def test_expired_lease_fail_closes_but_keeps_canary(tmp_path: Path) -> Non
     assert files.load_state().failed_closed is True
 
 
+def test_auth_files_are_group_readable_but_agent_state_is_private(tmp_path: Path) -> None:
+    files = AtomicFiles(
+        tmp_path / "auth.txt",
+        tmp_path / "auth.staging",
+        tmp_path / "state.json",
+    )
+
+    files.replace_auth(b"user password\n")
+    files.replace_auth(b"next password\n")
+    files.save_state(AgentState())
+
+    assert files.active_path.stat().st_mode & 0o777 == 0o640
+    assert files.backup_path.stat().st_mode & 0o777 == 0o640
+    assert files.state_path.stat().st_mode & 0o777 == 0o600
+
+
 @pytest.mark.asyncio
 async def test_lost_ack_response_is_retried_before_conditional_get(tmp_path: Path) -> None:
     node_id = uuid.uuid4()

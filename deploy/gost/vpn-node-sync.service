@@ -7,7 +7,8 @@ Requires=gost.service
 [Service]
 Type=simple
 User=root
-Group=root
+Group=gost
+UMask=0027
 EnvironmentFile=/etc/vpn-node/node.env
 ExecStart=/opt/vpn-node/bin/vpn-node-sync
 Restart=always
