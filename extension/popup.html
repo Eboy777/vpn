@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Virgo VPN</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <button class="brand" data-action="home" type="button" aria-label="Главная Virgo">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span class="brand-name">Virgo</span>
+          <span class="brand-version" id="version">v1.0.0</span>
+        </button>
+        <nav class="icon-nav" id="icon-nav" aria-label="Быстрые действия">
+          <button class="round-icon telegram-icon" data-action="telegram" type="button" title="Telegram" aria-label="Telegram">➤</button>
+          <button class="round-icon help-icon" data-action="help" type="button" title="Помощь" aria-label="Помощь">?</button>
+          <button class="round-icon settings-icon" data-action="settings" type="button" title="Настройки" aria-label="Настройки">⚙</button>
+        </nav>
+      </header>
+
+      <p class="notice" id="notice" role="status" hidden></p>
+
+      <section class="screen onboarding" data-screen="onboarding" hidden>
+        <div class="hero-logo" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <div class="onboarding-actions">
+          <button class="primary-button" data-action="start-pairing" type="button">Присоединиться через Telegram</button>
+          <button class="secondary-button" data-action="start-pairing" type="button">У меня уже есть аккаунт</button>
+          <p class="small-copy">Первый вход и новое устройство подтверждаются через Telegram.</p>
+        </div>
+      </section>
+
+      <section class="screen pairing" data-screen="pairing" hidden>
+        <h1>QR-код для быстрого входа</h1>
+        <div class="qr-card"><svg id="telegram-qr" xmlns="http://www.w3.org/2000/svg"></svg></div>
+        <p>Наведите камеру телефона на QR-код, откройте ссылку и нажмите Start в боте.</p>
+        <a class="primary-button link-button" id="telegram-link" href="#" target="_blank" rel="noreferrer">Открыть Telegram</a>
+        <button class="text-button" data-action="restart-pairing" type="button">Создать новую ссылку</button>
+      </section>
+
+      <section class="screen dashboard" data-screen="dashboard" hidden>
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-action="main" type="button" role="tab">Главная</button>
+          <button class="tab" data-action="tariffs" type="button" role="tab">Тариф</button>
+        </div>
+        <div class="power-wrap">
+          <button class="power-button" id="power-button" data-action="toggle-vpn" type="button" aria-pressed="false">
+            <span class="play-icon" aria-hidden="true"></span>
+            <span id="power-label">Подключиться</span>
+          </button>
+        </div>
+        <div class="status-card">
+          <div><span>Время подключения</span><strong id="connection-time">00:00</strong></div>
+          <div><span>Статус подключения</span><i class="status-dot" id="connection-dot"></i></div>
+          <div>
+            <span>Сервер</span>
+            <button class="node-button" id="node-select-button" data-action="locations" type="button"><strong id="node-name">—</strong></button>
+          </div>
+        </div>
+        <article class="access-card">
+          <h2 id="access-title">Пробный период</h2>
+          <p id="access-expiry">Проверяем срок доступа…</p>
+          <button class="danger-button" data-action="tariffs" type="button">Продлить подписку</button>
+        </article>
+      </section>
+
+      <section class="screen tariffs" data-screen="tariffs" hidden>
+        <div class="tabs" role="tablist">
+          <button class="tab" data-action="main" type="button" role="tab">Главная</button>
+          <button class="tab active" data-action="tariffs" type="button" role="tab">Тариф</button>
+        </div>
+        <h1>Выберите тариф</h1>
+        <p class="section-lead">Доступ продлевается на 30 дней после подтверждения оплаты.</p>
+        <article class="tariff-card recommended">
+          <span class="recommend-badge">MVP</span>
+          <h2>Virgo, 30 дней</h2>
+          <ul>
+            <li>До 3 активных устройств</li>
+            <li>Автоматический выбор свободного сервера</li>
+            <li>Выбор локации после оплаты</li>
+          </ul>
+          <div class="tariff-footer"><strong>299 ₽</strong><span>за 30 дней</span></div>
+          <button class="danger-button" data-action="payment-placeholder" type="button">Оплатить 299 ₽</button>
+        </article>
+        <p class="small-copy">Оплата появится после завершения юридической и фискальной настройки.</p>
+      </section>
+
+      <section class="screen locations" data-screen="locations" hidden>
+        <h1>Выбор сервера</h1>
+        <p class="section-lead">Доступно для активной платной подписки.</p>
+        <div class="node-list" id="node-list"></div>
+        <button class="secondary-button" data-action="main" type="button">Вернуться назад</button>
+      </section>
+
+      <section class="screen settings" data-screen="settings" hidden>
+        <h1>Настройки</h1>
+        <dl class="settings-list">
+          <div><dt>Язык</dt><dd>Русский</dd></div>
+          <div><dt>Тема</dt><dd>Тёмная</dd></div>
+          <div><dt>Аккаунт</dt><dd id="account-state">Привязан</dd></div>
+        </dl>
+        <a class="agreement-link" id="agreement-link" href="#">Пользовательское соглашение</a>
+        <div class="settings-actions">
+          <button class="secondary-button" data-action="main" type="button">Вернуться назад</button>
+          <button class="logout-button" data-action="logout" type="button">Выйти из аккаунта</button>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

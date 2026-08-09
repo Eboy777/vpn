@@ -11,6 +11,10 @@ from vpn_service.http.responses import error_response
 _PATH_METHODS = {
     "/api/pairing/init": "POST",
     "/api/pairing/status": "GET",
+    "/api/status": "GET",
+    "/api/nodes": "GET",
+    "/api/nodes/select": "POST",
+    "/api/payments/create": "POST",
 }
 _ALLOWED_HEADERS = {"authorization", "content-type", "idempotency-key", "x-request-id"}
 _ALLOW_HEADERS_VALUE = "Authorization, Content-Type, Idempotency-Key, X-Request-ID"
