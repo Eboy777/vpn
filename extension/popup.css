@@ -1,7 +1,7 @@
 :root {
   color-scheme: dark;
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #242424;
+  background: #111;
   color: #f5f5f5;
 }
 
@@ -12,7 +12,7 @@ html, body {
   margin: 0;
   width: 390px;
   min-height: 590px;
-  background: #242424;
+  background: #111;
 }
 
 button, a { font: inherit; }
@@ -24,6 +24,9 @@ button { color: inherit; }
   min-height: 590px;
   padding: 18px 20px 22px;
   overflow: hidden;
+  border: 1px solid rgba(255,255,255,.38);
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.55), 0 0 18px rgba(255,255,255,.08);
   background:
     radial-gradient(circle at 50% 47%, rgba(255,255,255,.08), transparent 30%),
     linear-gradient(180deg, #222 0%, #242424 50%, #7e7e7e 135%);
@@ -91,8 +94,11 @@ button { color: inherit; }
 .status-card { width: 280px; margin: 22px auto; padding: 18px 20px; border-radius: 24px; background: #232323; }
 .status-card div { display: flex; align-items: center; justify-content: space-between; min-height: 27px; font-size: 13px; }
 .status-card strong { font-weight: 500; }
-.node-button { min-width: 64px; padding: 4px 8px; border: 0; border-radius: 10px; background: #101010; cursor: pointer; }
-.node-button:disabled { background: transparent; cursor: default; opacity: 1; }
+.server-row { margin-top: 4px; }
+.server-label { margin-left: -8px; padding: 5px 8px; border: 1px solid #565656; border-radius: 10px; background: rgba(255,255,255,.08); color: #fff; font-weight: 700; }
+.node-button { min-width: 92px; padding: 5px 9px; border: 1px solid #555; border-radius: 11px; background: #101010; cursor: pointer; transition: border-color .18s, background .18s, color .18s; }
+.node-button:hover { border-color: #a8a8a8; }
+.node-button.upsell { border-color: #ff5156; background: rgba(252,36,43,.16); color: #ffd1d3; }
 .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #ffcf20; }
 .status-dot.connected { background: #13ee49; box-shadow: 0 0 10px rgba(19,238,73,.75); }
 
@@ -102,17 +108,21 @@ button { color: inherit; }
 .access-card .danger-button { min-height: 44px; }
 
 .tariffs { text-align: center; }
-.tariffs h1 { margin-bottom: 6px; }
+.tariffs h1 { margin-bottom: 8px; font-size: 32px; }
 .section-lead { margin: 0 10px 18px; color: #ddd; font-size: 14px; }
 .tariff-card { position: relative; padding: 22px 20px 20px; border-radius: 25px; background: #151515; text-align: left; }
 .tariff-card.recommended { border: 2px solid #dedede; }
-.tariff-card h2 { margin: 0 0 18px; font-size: 26px; }
-.tariff-card ul { min-height: 118px; margin: 0; padding-left: 20px; color: #eee; font-size: 14px; line-height: 1.55; }
+.flow-card { padding: 22px 20px 21px; background: linear-gradient(145deg, #171717, #202020); box-shadow: 0 12px 26px rgba(0,0,0,.22); }
+.tariff-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tariff-card h2 { margin: 0; font-size: 27px; }
+.tariff-card ul { margin: 22px 0 0; padding-left: 20px; color: #eee; font-size: 14px; font-style: italic; line-height: 1.5; }
 .tariff-card li + li { margin-top: 8px; }
-.recommend-badge { position: absolute; top: 18px; right: 18px; padding: 6px 12px; border-radius: 18px; background: #eee; color: #111; font-size: 12px; font-weight: 800; }
-.tariff-footer { display: flex; align-items: baseline; gap: 8px; margin: 18px 0; }
-.tariff-footer strong { font-size: 32px; }
-.tariff-footer span { color: #bbb; }
+.recommend-badge { flex: none; padding: 7px 12px; border-radius: 18px; background: #f4f1f1; color: #111; font-size: 12px; font-weight: 800; }
+.tariff-action-row { display: flex; align-items: center; justify-content: space-between; gap: 13px; margin-top: 22px; }
+.tariff-footer { flex: 1; }
+.tariff-footer strong { font-size: 20px; white-space: nowrap; }
+.tariff-select-button { width: auto; min-width: 142px; min-height: 48px; padding-inline: 18px; }
+.tariffs > .small-copy { margin-top: 13px; }
 
 .locations { padding-top: 24px; text-align: center; }
 .locations h1 { margin: 10px 0 6px; font-size: 28px; }

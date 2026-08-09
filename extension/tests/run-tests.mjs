@@ -241,9 +241,17 @@ test("bundled QR encoder produces a Version 5 matrix", () => {
 
 test("popup follows the approved copy and privacy changes", async () => {
   const html = await readFile(new URL("../popup.html", import.meta.url), "utf8");
+  const css = await readFile(new URL("../popup.css", import.meta.url), "utf8");
+  const script = await readFile(new URL("../popup.js", import.meta.url), "utf8");
   assert.equal(html.includes("Unblock your digital world"), false);
   assert.equal(html.includes("Device ID"), false);
   assert.equal(html.includes("Пользовательское соглашение"), true);
+  assert.equal(html.includes("Выбрать сервер"), true);
+  assert.equal(html.includes("Тариф Flow"), true);
+  assert.equal(html.includes("299 ₽ / 30 дней"), true);
+  assert.equal(html.includes("149"), false);
+  assert.equal(css.includes("border: 1px solid rgba(255,255,255,.38)"), true);
+  assert.equal(script.includes('nodeButton.dataset.action = canSelectNode ? "locations" : "tariffs"'), true);
 });
 
 test("manifest has only the required MV3 permissions and local popup code", async () => {

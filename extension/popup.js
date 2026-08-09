@@ -180,8 +180,17 @@ function renderDashboard() {
     ? "Отключиться"
     : waiting ? "Остановить" : "Подключиться";
   document.querySelector("#connection-dot").classList.toggle("connected", connected);
-  document.querySelector("#node-name").textContent = status?.vpn?.node?.name || "—";
-  document.querySelector("#node-select-button").disabled = !status?.access?.can_select_node;
+  const canSelectNode = Boolean(status?.access?.can_select_node);
+  const nodeButton = document.querySelector("#node-select-button");
+  document.querySelector("#node-name").textContent = canSelectNode
+    ? status?.vpn?.node?.name || "Автоматически"
+    : "Автоматически";
+  nodeButton.dataset.action = canSelectNode ? "locations" : "tariffs";
+  nodeButton.classList.toggle("upsell", !canSelectNode);
+  nodeButton.title = canSelectNode
+    ? "Открыть выбор сервера"
+    : "Выбор сервера доступен по подписке";
+  nodeButton.setAttribute("aria-label", nodeButton.title);
   if (!viewModel.lastError && status?.vpn?.unavailable_reason) {
     const messages = {
       ACCESS_EXPIRED: "Доступ закончился. Продлите подписку.",

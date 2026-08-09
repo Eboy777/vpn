@@ -54,8 +54,8 @@
         <div class="status-card">
           <div><span>Время подключения</span><strong id="connection-time">00:00</strong></div>
           <div><span>Статус подключения</span><i class="status-dot" id="connection-dot"></i></div>
-          <div>
-            <span>Сервер</span>
+          <div class="server-row">
+            <span class="server-label">Выбрать сервер</span>
             <button class="node-button" id="node-select-button" data-action="locations" type="button"><strong id="node-name">—</strong></button>
           </div>
         </div>
@@ -72,17 +72,21 @@
           <button class="tab active" data-action="tariffs" type="button" role="tab">Тариф</button>
         </div>
         <h1>Выберите тариф</h1>
-        <p class="section-lead">Доступ продлевается на 30 дней после подтверждения оплаты.</p>
-        <article class="tariff-card recommended">
-          <span class="recommend-badge">MVP</span>
-          <h2>Virgo, 30 дней</h2>
-          <ul>
+        <p class="section-lead">Оплата продлевает доступ на 30 дней.</p>
+        <article class="tariff-card flow-card recommended">
+          <div class="tariff-heading">
+            <h2>Тариф Flow</h2>
+            <span class="recommend-badge">Рекомендуем</span>
+          </div>
+          <ul class="tariff-benefits">
             <li>До 3 активных устройств</li>
-            <li>Автоматический выбор свободного сервера</li>
-            <li>Выбор локации после оплаты</li>
+            <li>Максимальная скорость для видео и игр</li>
+            <li>Выбор доступной VPN-локации</li>
           </ul>
-          <div class="tariff-footer"><strong>299 ₽</strong><span>за 30 дней</span></div>
-          <button class="danger-button" data-action="payment-placeholder" type="button">Оплатить 299 ₽</button>
+          <div class="tariff-action-row">
+            <div class="tariff-footer"><strong>299 ₽ / 30 дней</strong></div>
+            <button class="danger-button tariff-select-button" data-action="payment-placeholder" type="button">Выбрать Flow</button>
+          </div>
         </article>
         <p class="small-copy">Оплата появится после завершения юридической и фискальной настройки.</p>
       </section>
