@@ -9,82 +9,84 @@
 </head>
 <body>
   <header>
-    <div><span class="brand-mark">V</span><strong>Virgo Admin</strong></div>
-    <button id="refresh" type="button">Обновить</button>
+    <a class="brand" href="#overview-section"><span class="brand-mark">V</span><span><strong>Virgo</strong><small>Панель управления</small></span></a>
+    <nav aria-label="Разделы панели">
+      <a href="#overview-section">Главная</a><a href="#network-section">Сеть</a><a href="#users-section">Пользователи</a><a href="#events-section">События</a>
+    </nav>
+    <div class="header-actions"><span id="last-refresh" class="muted"></span><button id="refresh" class="primary" type="button">Обновить данные</button></div>
   </header>
   <main>
     <p id="notice" class="notice" hidden></p>
-    <section>
-      <h1>Состояние сервиса</h1>
+    <div class="page-heading"><div><p class="eyebrow">Обзор системы</p><h1>Всё главное — на одном экране</h1><p>Пользователи, подключения и состояние инфраструктуры.</p></div><span class="live-indicator"><i></i>Данные системы</span></div>
+    <section id="overview-section">
+      <div class="section-title"><div><h2>Главные показатели</h2><p>Текущее состояние сервиса и аудитории</p></div></div>
       <div id="overview" class="cards"></div>
       <p id="download-note" class="muted"></p>
     </section>
 
-    <section>
-      <div class="section-title"><h2>Качество подключения за 24 часа</h2><span id="quality-updated" class="muted"></span></div>
+    <section id="quality-section">
+      <div class="section-title"><div><h2>Качество подключения</h2><p>Статистика за последние 24 часа</p></div><span id="quality-updated" class="muted"></span></div>
       <div id="quality" class="cards"></div>
-      <h3>Ошибки по версиям</h3>
-      <div class="table-wrap"><table>
-        <thead><tr><th>Расширение</th><th>Браузер</th><th>Платформа</th><th>Ошибка</th><th>Количество</th></tr></thead>
-        <tbody id="quality-errors"></tbody>
-      </table></div>
-      <h3>Общие IP активных пользователей</h3>
-      <div class="table-wrap"><table>
-        <thead><tr><th>IP</th><th>Пользователей</th><th>Сеансов</th></tr></thead>
-        <tbody id="shared-ips"></tbody>
-      </table></div>
+      <div class="details-grid">
+        <details><summary>Ошибки подключения по версиям</summary><div class="table-wrap"><table>
+          <thead><tr><th>Расширение</th><th>Браузер</th><th>Платформа</th><th>Ошибка</th><th>Количество</th></tr></thead><tbody id="quality-errors"></tbody>
+        </table></div></details>
+        <details><summary>Пользователи с общим IP</summary><div class="table-wrap"><table>
+          <thead><tr><th>IP</th><th>Пользователей</th><th>Сеансов</th></tr></thead><tbody id="shared-ips"></tbody>
+        </table></div></details>
+      </div>
     </section>
 
-    <section>
-      <div class="section-title"><h2>Адреса входных прокси backend</h2><span id="ingresses-signing" class="muted"></span></div>
+    <section id="network-section">
+      <div class="section-title"><div><h2>Доступ к backend</h2><p>Адреса, через которые расширение связывается с системой</p></div><span id="ingresses-signing" class="muted"></span></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Адрес</th><th>Приоритет</th><th>Состояние</th><th>Тип</th><th>Действия</th></tr></thead>
+        <thead><tr><th>Адрес</th><th>Порядок</th><th>Проверка</th><th>Тип</th><th>Управление</th></tr></thead>
         <tbody id="ingresses"></tbody>
       </table></div>
-      <form id="add-ingress" class="form-grid compact">
-        <input name="url" required maxlength="255" type="url" pattern="https://.*" placeholder="https://api-reserve.example.com">
-        <input name="priority" required type="number" min="1" max="1000" value="100" placeholder="Приоритет">
-        <button type="submit">Добавить резервный адрес</button>
-      </form>
-      <p class="privacy">Начальные адреса встроены в расширение и не удаляются. Дополнительные адреса попадают в подписанный список.</p>
+      <details class="add-box"><summary>Добавить адрес backend</summary><p class="helper">Укажите HTTPS-адрес. Чем меньше номер порядка, тем раньше он используется.</p><form id="add-ingress" class="form-grid compact">
+        <label><span>HTTPS-адрес</span><input name="url" required maxlength="255" type="url" pattern="https://.*" placeholder="https://api-reserve.example.com"></label>
+        <label><span>Порядок</span><input name="priority" required type="number" min="1" max="1000" value="100"></label>
+        <button class="primary" type="submit">Добавить адрес</button>
+      </form></details>
+      <p class="privacy">Два основных адреса встроены в расширение. Добавленные адреса передаются расширению в защищённом подписанном списке.</p>
     </section>
 
     <section>
-      <div class="section-title"><h2>VPN-ноды</h2><span id="nodes-updated" class="muted"></span></div>
+      <div class="section-title"><div><h2>VPN-серверы</h2><p>Нагрузка, доступность и управление нодами</p></div><span id="nodes-updated" class="muted"></span></div>
       <div class="table-wrap"><table>
         <thead><tr><th>Нода</th><th>Состояние</th><th>Пользователи</th><th>Здоровье</th><th>Нагрузка</th><th>Трафик</th><th>Действия</th></tr></thead>
         <tbody id="nodes"></tbody>
       </table></div>
-      <details>
-        <summary>Добавить ноду</summary>
+      <details class="add-box">
+        <summary>Добавить VPN-сервер</summary>
         <form id="add-node" class="form-grid">
-          <input name="name" required maxlength="64" placeholder="Название, например NL-1">
-          <input name="host" required maxlength="253" placeholder="Домен ноды">
-          <input name="country_code" required pattern="[A-Z]{2}" maxlength="2" placeholder="NL">
-          <input name="provider" required maxlength="100" placeholder="Провайдер">
-          <input name="capacity_users" required type="number" min="1" placeholder="Вместимость">
-          <button type="submit">Создать warming-ноду</button>
+          <label><span>Название</span><input name="name" required maxlength="64" placeholder="Например, NL-1"></label>
+          <label><span>Домен сервера</span><input name="host" required maxlength="253" placeholder="node.example.com"></label>
+          <label><span>Страна</span><input name="country_code" required pattern="[A-Z]{2}" maxlength="2" placeholder="NL"></label>
+          <label><span>Провайдер</span><input name="provider" required maxlength="100" placeholder="Название провайдера"></label>
+          <label><span>Лимит пользователей</span><input name="capacity_users" required type="number" min="1" placeholder="500"></label>
+          <button class="primary" type="submit">Добавить сервер</button>
         </form>
       </details>
-      <details>
+      <details class="add-box">
         <summary>Добавить российскую канарейку</summary>
         <form id="add-canary" class="form-grid compact">
-          <input name="name" required maxlength="100" placeholder="Название канарейки">
-          <button type="submit">Создать и выдать токен</button>
+          <label><span>Название</span><input name="name" required maxlength="100" placeholder="Например, Moscow-1"></label>
+          <button class="primary" type="submit">Создать и получить токен</button>
         </form>
       </details>
     </section>
 
-    <section>
-      <div class="section-title"><h2>Пользователи</h2><span id="users-updated" class="muted"></span></div>
+    <section id="users-section">
+      <div class="section-title"><div><h2>Пользователи</h2><p>Подписки, устройства и использование VPN</p></div><span id="users-updated" class="muted"></span></div>
       <div class="table-wrap"><table>
         <thead><tr><th>Telegram</th><th>Доступ</th><th>IP / активность</th><th>Нода</th><th>Трафик</th><th>Соединения</th><th>VPN-сеансы</th></tr></thead>
         <tbody id="users"></tbody>
       </table></div>
     </section>
 
-    <section>
-      <h2>Последние безопасные события</h2>
+    <section id="events-section">
+      <div class="section-title"><div><h2>Последние события</h2><p>Действия и ошибки без содержимого трафика</p></div></div>
       <div class="table-wrap"><table>
         <thead><tr><th>Время</th><th>Пользователь</th><th>Событие</th><th>Ошибка</th><th>IP</th></tr></thead>
         <tbody id="events"></tbody>

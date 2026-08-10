@@ -14,6 +14,13 @@ const formatDuration = (seconds) => {
   return `${(value / 3600).toFixed(1)} ч`;
 };
 const time = (value) => value ? new Date(value).toLocaleString("ru-RU") : "—";
+const statusLabels = {
+  active: "Работает", blocked: "Заблокирован", warming: "Подготовка",
+  draining: "Выводится", healthy: "Исправен", failed: "Ошибка",
+  inconclusive: "Нет данных", free: "Бесплатный", paid: "Оплачен",
+  expired: "Истёк", disabled: "Отключён",
+};
+const statusLabel = (value) => statusLabels[value] || value || "—";
 
 async function api(path, options = {}) {
   const response = await fetch(`/admin/api/${path}`, {
@@ -100,7 +107,7 @@ async function renderNodes() {
   for (const node of data.nodes) {
     const row = document.createElement("tr");
     cell(row, `${node.country_code} ${node.name}\n${node.host}:${node.port}`);
-    const status = cell(row, ""); const badge = document.createElement("span"); badge.className = `status ${node.status}`; badge.textContent = node.status; status.append(badge);
+    const status = cell(row, ""); const badge = document.createElement("span"); badge.className = `status ${node.status}`; badge.textContent = statusLabel(node.status); status.append(badge);
     const forecast = node.estimated_capacity_exhaustion_hours === null
       ? "прогноз —"
       : `заполнится ~через ${formatDuration(node.estimated_capacity_exhaustion_hours * 3600)}`;
@@ -111,13 +118,13 @@ async function renderNodes() {
     cell(row, `${formatBytes(node.input_bytes)} ↓\n${formatBytes(node.output_bytes)} ↑\n${node.current_connections} сейчас`);
     const actions = cell(row, "", "actions");
     actionButton(actions, "Токен", "issue_current_token", node);
-    actionButton(actions, "Next-токен", "issue_next_token", node);
-    actionButton(actions, "Сделать next основным", "promote_token", node);
+    actionButton(actions, "Резервный токен", "issue_next_token", node);
+    actionButton(actions, "Сделать резервный основным", "promote_token", node);
     actionButton(actions, "Отозвать токен", "revoke_token", node, "danger");
     actionButton(actions, "Активировать", "activate", node, "good");
-    actionButton(actions, "Capacity", "set_capacity", node);
-    actionButton(actions, "Drain", "drain_prepare", node);
-    actionButton(actions, "Завершить drain", "drain_finalize", node);
+    actionButton(actions, "Изменить лимит", "set_capacity", node);
+    actionButton(actions, "Начать вывод", "drain_prepare", node);
+    actionButton(actions, "Завершить вывод", "drain_finalize", node);
     actionButton(actions, "Заблокировать", "block", node, "danger");
     actionButton(actions, "Восстановить", "recover", node, "good");
     if (node.tokens.length) {
@@ -149,16 +156,16 @@ async function renderIngresses() {
     const row = document.createElement("tr");
     cell(row, item.url, "mono"); cell(row, item.priority);
     const check = item.health;
-    const checkText = check ? `${check.success ? "доступен" : "ошибка"} / ${check.latency_ms} мс` : "нет проверки";
-    cell(row, `${item.enabled ? "active" : "disabled"}\n${checkText}`, check?.success ? "good" : check ? "critical" : "");
-    cell(row, item.bootstrap ? "встроенный" : "добавленный");
+    const checkText = check ? `${check.success ? "Доступен" : "Недоступен"} · ${check.latency_ms} мс` : "Ещё не проверялся";
+    cell(row, `${item.enabled ? "Включён" : "Отключён"}\n${checkText}`, check?.success ? "good" : check ? "critical" : "");
+    cell(row, item.bootstrap ? "Основной" : "Дополнительный");
     const actions = cell(row, "", "actions");
     if (!item.bootstrap) {
       const toggle = document.createElement("button"); toggle.type = "button";
       toggle.textContent = item.enabled ? "Отключить" : "Включить";
       toggle.addEventListener("click", () => ingressAction(item, "update", {enabled: !item.enabled}).catch((error) => showNotice(error.message, true)));
       const priority = document.createElement("button"); priority.type = "button";
-      priority.textContent = "Приоритет";
+      priority.textContent = "Изменить порядок";
       priority.addEventListener("click", () => {
         const value = Number(window.prompt("Приоритет 1–1000", item.priority));
         if (!Number.isInteger(value) || value < 1 || value > 1000) return;
@@ -219,7 +226,7 @@ async function renderUsers() {
   for (const user of data.users) {
     const row = document.createElement("tr");
     cell(row, String(user.telegram_id), "mono");
-    const access = cell(row, ""); const badge = document.createElement("span"); badge.className = `status ${user.access}`; badge.textContent = user.access; access.append(badge);
+    const access = cell(row, ""); const badge = document.createElement("span"); badge.className = `status ${user.access}`; badge.textContent = statusLabel(user.access); access.append(badge);
     cell(row, `${user.last_ip || "—"}\n${time(user.last_seen_at)}\nустройств: ${user.devices}`);
     cell(row, `${user.assigned_node_id || "—"}\n${user.node_selection_mode}`, "mono");
     cell(row, `${formatBytes(user.input_bytes)} ↓\n${formatBytes(user.output_bytes)} ↑`);
@@ -242,8 +249,12 @@ async function renderEvents() {
 }
 
 async function refreshAll() {
-  try { await Promise.all([renderOverview(), renderQuality(), renderIngresses(), renderNodes(), renderUsers(), renderEvents()]); }
-  catch (error) { showNotice(error.message, true); }
+  const button = document.querySelector("#refresh"); button.disabled = true; button.textContent = "Обновляю…";
+  try {
+    await Promise.all([renderOverview(), renderQuality(), renderIngresses(), renderNodes(), renderUsers(), renderEvents()]);
+    document.querySelector("#last-refresh").textContent = `Обновлено ${new Date().toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"})}`;
+  } catch (error) { showNotice(error.message, true); }
+  finally { button.disabled = false; button.textContent = "Обновить данные"; }
 }
 
 document.querySelector("#refresh").addEventListener("click", refreshAll);
