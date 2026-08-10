@@ -247,9 +247,11 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(html.includes("Device ID"), false);
   assert.equal(html.includes("Пользовательское соглашение"), true);
   assert.equal(html.includes("Выбрать сервер:"), true);
-  assert.equal(html.includes("Тариф Flow"), true);
+  assert.equal(html.includes("Virgo TRIP"), true);
+  assert.equal(html.includes("Virgo FLOW"), true);
+  assert.equal(html.includes("149 ₽ / 15 дней"), true);
   assert.equal(html.includes("299 ₽ / 30 дней"), true);
-  assert.equal(html.includes("149"), false);
+  assert.equal(html.includes('src="assets/virgo-logo.png"'), true);
   assert.equal(css.includes("border: 1px solid rgba(255,255,255,.38)"), true);
   assert.equal(css.includes("border-radius: 0"), true);
   assert.equal(css.includes("justify-content: flex-end"), true);
@@ -277,6 +279,10 @@ test("manifest has only the required MV3 permissions and local popup code", asyn
     assert.equal(png.readUInt32BE(16), Number(size));
     assert.equal(png.readUInt32BE(20), Number(size));
   }
+  const insideLogo = await readFile(new URL("../assets/virgo-logo.png", import.meta.url));
+  assert.equal(insideLogo.subarray(1, 4).toString("ascii"), "PNG");
+  assert.equal(insideLogo.readUInt32BE(16), 178);
+  assert.equal(insideLogo.readUInt32BE(20), 256);
   assert.equal("content_security_policy" in manifest, false);
 });
 

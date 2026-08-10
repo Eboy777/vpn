@@ -21,9 +21,11 @@ button { color: inherit; }
 .app-shell {
   position: relative;
   width: 390px;
+  height: 590px;
   min-height: 590px;
   padding: 18px 20px 22px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   border: 1px solid rgba(255,255,255,.38);
   border-radius: 0;
   box-shadow: inset 0 0 0 1px rgba(0,0,0,.55), 0 0 18px rgba(255,255,255,.08);
@@ -37,14 +39,9 @@ button { color: inherit; }
 .brand-name { font-size: 34px; line-height: 1; font-weight: 700; letter-spacing: -.04em; }
 .brand-version { color: #aaa; font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; }
 
-.brand-mark, .hero-logo { position: relative; display: grid; grid-template-columns: repeat(2, 1fr); gap: 3px; }
-.brand-mark { width: 34px; height: 42px; }
-.hero-logo { width: 112px; height: 138px; gap: 7px; filter: drop-shadow(6px 5px 6px rgba(255,255,255,.28)); }
-.brand-mark i, .hero-logo i { display: block; background: #eee; }
-.brand-mark i:nth-child(1), .hero-logo i:nth-child(1) { border-radius: 50% 50% 0 50%; }
-.brand-mark i:nth-child(2), .hero-logo i:nth-child(2) { border-radius: 0 50% 50% 0; }
-.brand-mark i:nth-child(3), .hero-logo i:nth-child(3) { border-radius: 50% 0 0 50%; }
-.brand-mark i:nth-child(4), .hero-logo i:nth-child(4) { border-radius: 0 50% 50% 50%; }
+.brand-mark, .hero-logo { display: block; object-fit: contain; }
+.brand-mark { width: 30px; height: 42px; }
+.hero-logo { width: 97px; height: 138px; filter: drop-shadow(6px 5px 6px rgba(255,255,255,.28)); }
 
 .icon-nav { display: flex; gap: 8px; }
 .round-icon { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 50%; background: #050505; font-weight: 800; cursor: pointer; }
@@ -112,6 +109,7 @@ button { color: inherit; }
 .tariffs h1 { margin-bottom: 8px; font-size: 32px; }
 .section-lead { margin: 0 10px 18px; color: #ddd; font-size: 14px; }
 .tariff-card { position: relative; padding: 22px 20px 20px; border-radius: 25px; background: #151515; text-align: left; }
+.tariff-card + .tariff-card { margin-top: 14px; }
 .tariff-card.recommended { border: 2px solid #dedede; }
 .flow-card { padding: 22px 20px 21px; background: linear-gradient(145deg, #171717, #202020); box-shadow: 0 12px 26px rgba(0,0,0,.22); }
 .tariff-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

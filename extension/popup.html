@@ -10,7 +10,7 @@
     <main class="app-shell">
       <header class="topbar">
         <button class="brand" data-action="home" type="button" aria-label="Главная Virgo">
-          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <img class="brand-mark" src="assets/virgo-logo.png" alt="" aria-hidden="true">
           <span class="brand-name">Virgo</span>
           <span class="brand-version" id="version">v1.0.0</span>
         </button>
@@ -24,7 +24,7 @@
       <p class="notice" id="notice" role="status" hidden></p>
 
       <section class="screen onboarding" data-screen="onboarding" hidden>
-        <div class="hero-logo" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <img class="hero-logo" src="assets/virgo-logo.png" alt="" aria-hidden="true">
         <div class="onboarding-actions">
           <button class="primary-button" data-action="start-pairing" type="button">Присоединиться через Telegram</button>
           <button class="secondary-button" data-action="start-pairing" type="button">У меня уже есть аккаунт</button>
@@ -75,20 +75,34 @@
           <button class="tab active" data-action="tariffs" type="button" role="tab">Тариф</button>
         </div>
         <h1>Выберите тариф</h1>
-        <p class="section-lead">Оплата продлевает доступ на 30 дней.</p>
+        <p class="section-lead">Выберите подходящий период доступа.</p>
+        <article class="tariff-card trip-card">
+          <div class="tariff-heading">
+            <h2>Virgo TRIP</h2>
+          </div>
+          <ul class="tariff-benefits">
+            <li>Быстрое подключение</li>
+            <li>До 2 устройств</li>
+            <li>Поддержка 24/7</li>
+          </ul>
+          <div class="tariff-action-row">
+            <div class="tariff-footer"><strong>149 ₽ / 15 дней</strong></div>
+            <button class="danger-button tariff-select-button" data-action="payment-placeholder" type="button">Выбрать TRIP</button>
+          </div>
+        </article>
         <article class="tariff-card flow-card recommended">
           <div class="tariff-heading">
-            <h2>Тариф Flow</h2>
+            <h2>Virgo FLOW</h2>
             <span class="recommend-badge">Рекомендуем</span>
           </div>
           <ul class="tariff-benefits">
-            <li>До 3 активных устройств</li>
+            <li>До 5 устройств</li>
             <li>Максимальная скорость для видео и игр</li>
-            <li>Выбор доступной VPN-локации</li>
+            <li>Автовыбор лучшего сервера</li>
           </ul>
           <div class="tariff-action-row">
             <div class="tariff-footer"><strong>299 ₽ / 30 дней</strong></div>
-            <button class="danger-button tariff-select-button" data-action="payment-placeholder" type="button">Выбрать Flow</button>
+            <button class="danger-button tariff-select-button" data-action="payment-placeholder" type="button">Выбрать FLOW</button>
           </div>
         </article>
         <p class="small-copy">Оплата появится после завершения юридической и фискальной настройки.</p>
