@@ -23,12 +23,19 @@ const authAttempts = new Set();
 let refreshPromise = null;
 let operationQueue = Promise.resolve();
 
-chrome.runtime.onInstalled.addListener(() => {
-  void enqueueOperation(bootstrap);
+chrome.runtime.onInstalled.addListener((details) => {
+  const eventType = details.reason === "install" ? "installed" : "updated";
+  void enqueueOperation(async () => {
+    await reportLifecycle(eventType).catch(() => undefined);
+    await bootstrap();
+  });
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  void enqueueOperation(bootstrap);
+  void enqueueOperation(async () => {
+    await reportLifecycle("launched").catch(() => undefined);
+    await bootstrap();
+  });
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -54,12 +61,23 @@ chrome.webRequest.onAuthRequired.addListener(
   ["asyncBlocking"],
 );
 
-for (const event of [chrome.webRequest.onCompleted, chrome.webRequest.onErrorOccurred]) {
-  event.addListener(
-    (details) => authAttempts.delete(details.requestId),
-    {urls: ["<all_urls>"]},
-  );
-}
+chrome.webRequest.onCompleted.addListener(
+  (details) => authAttempts.delete(details.requestId),
+  {urls: ["<all_urls>"]},
+);
+
+chrome.webRequest.onErrorOccurred.addListener(
+  (details) => {
+    authAttempts.delete(details.requestId);
+    try {
+      if (controlHostnames(CONFIG).includes(new URL(details.url).hostname)) return;
+    } catch {
+      return;
+    }
+    void enqueueOperation(reportConnectionError).catch(() => undefined);
+  },
+  {urls: ["<all_urls>"]},
+);
 
 void enqueueOperation(bootstrap);
 
@@ -179,6 +197,7 @@ async function setVpn(enabled) {
   const state = await store.read();
   if (!state.deviceToken) throw new Error("Сначала привяжите Telegram");
   if (!enabled) {
+    await reportVpnEvent("vpn_stopped").catch(() => undefined);
     await proxyController.disable();
     await chrome.alarms.clear(STATUS_ALARM);
     const next = await store.write({
@@ -186,6 +205,7 @@ async function setVpn(enabled) {
       vpnEnabled: false,
       connectedAt: null,
       currentProxy: null,
+      vpnSessionId: null,
       controlUnavailableSince: null,
       nextStatusCheckAt: 0,
       lastError: null,
@@ -197,6 +217,7 @@ async function setVpn(enabled) {
   await store.write({
     ...state,
     vpnEnabled: true,
+    vpnSessionId: state.vpnSessionId || crypto.randomUUID(),
     controlUnavailableSince: null,
     nextStatusCheckAt: 0,
     lastError: null,
@@ -234,6 +255,7 @@ async function performStatusRefresh({force}) {
     if (state.vpnEnabled && newProxy) {
       next = {
         ...next,
+        vpnSessionId: state.vpnSessionId || crypto.randomUUID(),
         currentProxy: newProxy,
         connectedAt: state.connectedAt ?? Date.now(),
       };
@@ -247,6 +269,9 @@ async function performStatusRefresh({force}) {
         throw error;
       }
     } else if (!newProxy) {
+      if (state.vpnSessionId) {
+        await reportVpnEvent("vpn_stopped", state).catch(() => undefined);
+      }
       await proxyController.disable();
       const finalAccessState = ["expired", "blocked"].includes(status.access?.state);
       next = {
@@ -254,6 +279,7 @@ async function performStatusRefresh({force}) {
         vpnEnabled: finalAccessState ? false : state.vpnEnabled,
         currentProxy: null,
         connectedAt: null,
+        vpnSessionId: null,
       };
       if (finalAccessState) await chrome.alarms.clear(STATUS_ALARM);
     }
@@ -265,6 +291,10 @@ async function performStatusRefresh({force}) {
       throw error;
     }
     if (saved.vpnEnabled) await scheduleStatusAlarm(nextCheckSeconds);
+    if (saved.vpnEnabled && newProxy) {
+      const eventType = state.connectedAt === null ? "vpn_started" : "vpn_heartbeat";
+      await reportVpnEvent(eventType, saved).catch(() => undefined);
+    }
     await updateBadge(saved);
     return saved;
   } catch (error) {
@@ -307,10 +337,42 @@ async function enforceLocalSafetyDeadline() {
     ...state,
     vpnEnabled: false,
     currentProxy: null,
+    vpnSessionId: null,
     connectedAt: null,
     nextStatusCheckAt: 0,
   });
   await updateBadge(next);
+}
+
+async function reportLifecycle(eventType) {
+  const state = await store.read();
+  return api.lifecycle({
+    event_id: crypto.randomUUID(),
+    installation_id: state.deviceId,
+    event_type: eventType,
+    extension_version: chrome.runtime.getManifest().version,
+  });
+}
+
+async function reportVpnEvent(eventType, providedState = null, errorCode = null) {
+  const state = providedState || await store.read();
+  if (!state.deviceToken || !state.vpnSessionId) return;
+  await api.telemetry(state.deviceToken, {
+    event_id: crypto.randomUUID(),
+    event_type: eventType,
+    session_id: state.vpnSessionId,
+    extension_version: chrome.runtime.getManifest().version,
+    ...(errorCode ? {error_code: errorCode} : {}),
+  });
+}
+
+async function reportConnectionError() {
+  const state = await store.read();
+  if (!state.vpnEnabled || !state.vpnSessionId) return;
+  const now = Date.now();
+  if (now - Number(state.lastTelemetryErrorAt || 0) < 60_000) return;
+  const next = await store.write({...state, lastTelemetryErrorAt: now});
+  await reportVpnEvent("connection_error", next, "PROXY_REQUEST_FAILED");
 }
 
 async function getNodes() {
@@ -328,6 +390,7 @@ async function selectNode(nodeId) {
 
 async function logout() {
   const controlRateLimitedUntil = (await store.read()).controlRateLimitedUntil;
+  await reportVpnEvent("vpn_stopped").catch(() => undefined);
   await proxyController.disable();
   await chrome.alarms.clear(STATUS_ALARM);
   authAttempts.clear();

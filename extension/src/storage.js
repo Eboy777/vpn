@@ -8,6 +8,8 @@ export function initialState(deviceId = crypto.randomUUID()) {
     pairing: null,
     vpnEnabled: false,
     connectedAt: null,
+    vpnSessionId: null,
+    lastTelemetryErrorAt: 0,
     status: null,
     currentProxy: null,
     controlRateLimitedUntil: 0,

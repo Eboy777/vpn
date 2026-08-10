@@ -7,11 +7,14 @@ import signal
 from vpn_service.application.pairing import PairingService
 from vpn_service.application.telegram_bot import TelegramBotService
 from vpn_service.config import ProcessRole, Settings
+from vpn_service.external.admin_telegram import AdminTelegramNotifier
 from vpn_service.external.telegram import TelegramBotClient
 from vpn_service.logging import configure_logging
 from vpn_service.persistence.database import Database
+from vpn_service.worker.analytics_retention import AnalyticsRetentionWorker
 from vpn_service.worker.leader import WorkerAlreadyRunningError, WorkerLeader
 from vpn_service.worker.node_snapshot_watchdog import NodeSnapshotWatchdog
+from vpn_service.worker.operations_health import OperationsHealthWorker
 from vpn_service.worker.outbox import OutboxWorker
 from vpn_service.worker.rate_limits import RateLimitPruner
 from vpn_service.worker.snapshot_issues import SnapshotIssuePruner
@@ -28,6 +31,7 @@ async def run() -> None:
     configure_logging(settings.log_level, settings.log_format)
     database = Database(settings)
     telegram = TelegramBotClient(settings)
+    admin_telegram = AdminTelegramNotifier(settings)
     pairing = PairingService(database.sessions, settings)
     telegram_bot = TelegramBotService(database.sessions, settings, pairing)
     stop = asyncio.Event()
@@ -43,15 +47,24 @@ async def run() -> None:
                     OutboxWorker(
                         database.sessions,
                         settings,
-                        handlers={"telegram.call": telegram.handle_outbox},
+                        handlers={
+                            "telegram.call": telegram.handle_outbox,
+                            "admin.telegram.alert": admin_telegram.handle_outbox,
+                        },
                     ).run_forever(stop)
                 )
                 tasks.create_task(RateLimitPruner(database.sessions, settings).run_forever(stop))
+                tasks.create_task(
+                    AnalyticsRetentionWorker(database.sessions, settings).run_forever(stop)
+                )
                 tasks.create_task(
                     SnapshotIssuePruner(database.sessions, settings).run_forever(stop)
                 )
                 tasks.create_task(
                     NodeSnapshotWatchdog(database.sessions, settings).run_forever(stop)
+                )
+                tasks.create_task(
+                    OperationsHealthWorker(database.sessions, settings).run_forever(stop)
                 )
                 tasks.create_task(
                     SubscriptionReminderWorker(database.sessions, settings).run_forever(stop)

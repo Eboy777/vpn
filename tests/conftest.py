@@ -88,6 +88,14 @@ def settings_factory() -> Callable[..., Settings]:
                         "chrome-extension://abcdefghijklmnopabcdefghijklmnop"
                     ],
                     "trusted_proxy_cidrs": ["10.77.0.2/32", "10.77.0.3/32"],
+                    "admin_panel_enabled": True,
+                    "admin_panel_password_hash": (
+                        "pbkdf2_sha256$600000$80_7LWPZHysGYakg4MzyaQ$"
+                        "IyhJ6E2INrWAIk-_wkLCbr2KIx18cBbx_Fn5o49R09Y"
+                    ),
+                    "admin_telegram_bot_token": ("production-admin-bot-token-material-0001"),
+                    "admin_telegram_chat_ids_json": [1000000001],
+                    "metrics_scrape_token": "production-metrics-token-material-0001",
                 }
             )
         values.update(overrides)

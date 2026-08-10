@@ -20,6 +20,14 @@ def test_public_proxy_overwrites_untrusted_forwarding_headers_and_has_safe_logs(
     assert "error_log /var/log/nginx/error.log crit;" in config
     assert "proxy_request_buffering off;" in config
     assert "proxy_buffering off;" in config
+    assert "limit_req zone=public_api_per_ip burst=60 nodelay;" in config
+    assert "limit_req zone=admin_api_per_ip burst=10 nodelay;" in config
+    assert "auth_basic_user_file /etc/nginx/loki.htpasswd;" in config
+    assert "location = /loki/api/v1/push" in config
+    assert "location = /internal/metrics" in config
+    assert "limit_conn public_connections_per_ip 30;" in config
+    assert "client_header_timeout 10s;" in config
+    assert "limit_except GET POST OPTIONS" in config
 
 
 def test_wireguard_peer_addresses_match_backend_trust_profile() -> None:
@@ -46,7 +54,10 @@ def test_firewall_templates_limit_origin_api_to_wireguard_peers() -> None:
     origin = (ROOT / "deploy/api-proxy/nftables-origin.conf.example").read_text()
     proxy = (ROOT / "deploy/api-proxy/nftables-proxy.conf.example").read_text()
 
-    assert 'iifname "wg0" ip saddr { 10.77.0.2, 10.77.0.3 } tcp dport 8000 accept' in origin
+    assert (
+        'iifname "wg0" ip saddr { 10.77.0.2, 10.77.0.3 } tcp dport { 8000, 3100 } accept'
+    ) in origin
     assert "tcp dport { 80, 443 } accept" in proxy
+    assert "tcp dport 443 tcp flags syn limit rate over 3000/second" in proxy
     assert "flush ruleset" not in origin
     assert "flush ruleset" not in proxy

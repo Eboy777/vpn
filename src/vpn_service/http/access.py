@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request
 from vpn_service.application.access import AccessResult, AccessService, AccessState, PublicNode
 from vpn_service.application.device_auth import AuthenticatedDevice, DeviceAuthenticator
 from vpn_service.domain.errors import ApplicationError
+from vpn_service.http.client_ip import client_ip
 from vpn_service.http.pairing import _require_json
 from vpn_service.http.responses import ContractJSONResponse, no_store_headers
 from vpn_service.http.schemas import (
@@ -93,6 +94,7 @@ async def select_node(
     result = await _service(request).select_node(
         await _authenticate(request),
         payload.node_id,
+        source_ip=client_ip(request, request.app.state.settings.trusted_proxy_cidrs),
     )
     body = NodeSelectionResponse(
         assigned_node=_node_response(result.assigned_node),
@@ -114,7 +116,10 @@ async def _authenticate(request: Request) -> AuthenticatedDevice:
     authenticator: DeviceAuthenticator | None = request.app.state.device_authenticator
     if authenticator is None:
         raise ApplicationError(503, "SERVICE_UNAVAILABLE", "Service is unavailable")
-    return await authenticator.authenticate(match.group(1))
+    return await authenticator.authenticate(
+        match.group(1),
+        source_ip=client_ip(request, request.app.state.settings.trusted_proxy_cidrs),
+    )
 
 
 async def _validate_empty_get(request: Request) -> None:

@@ -18,9 +18,11 @@ def test_gost_config_enforces_request_connection_and_bandwidth_limits() -> None:
     assert "climiter: vpn-connections" in config
     assert '- "$$ 25MB 25MB"' in config
     assert '- "$ 1000"' in config
-    assert '- "$$ 30"' in config
+    assert '- "$$ 60"' in config
     assert '- "$ 5000"' in config
-    assert '- "$$ 128"' in config
+    assert '- "$$ 256"' in config
+    assert "observer: vpn-user-traffic" in config
+    assert "observer.resetTraffic: true" in config
     assert "idleTimeout: 10m" in config
     assert 'addr: "127.0.0.1:9000"' in config
     assert "probeResist" not in config

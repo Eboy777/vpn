@@ -6,17 +6,25 @@ def test_stage_one_metadata_contains_expected_tables() -> None:
     assert set(Base.metadata.tables) == {
         "canaries",
         "canary_auth_tokens",
+        "canary_runs",
         "devices",
+        "extension_installations",
+        "extension_lifecycle_events",
         "node_auth_tokens",
         "node_check_events",
+        "node_runtime_metrics",
         "node_snapshot_acks",
         "node_snapshot_issues",
+        "node_telemetry_reports",
+        "node_user_traffic",
         "nodes",
         "outbox_events",
         "payments",
         "rate_limit_counters",
         "telegram_update_events",
+        "user_activity_events",
         "users",
+        "vpn_sessions",
     }
 
 

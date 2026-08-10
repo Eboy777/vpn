@@ -5,6 +5,7 @@ from importlib.resources import files
 from typing import Any
 
 import httpx
+from pydantic import SecretStr
 
 from vpn_service.config import Settings
 
@@ -28,9 +29,14 @@ class TelegramBotClient:
         *,
         transport: httpx.AsyncBaseTransport | None = None,
         api_base_url: str = "https://api.telegram.org",
+        token: SecretStr | str | None = None,
     ) -> None:
-        token = settings.telegram_bot_token
-        self._token = token.get_secret_value() if token is not None else None
+        resolved_token = settings.telegram_bot_token if token is None else token
+        self._token = (
+            resolved_token.get_secret_value()
+            if isinstance(resolved_token, SecretStr)
+            else resolved_token
+        )
         self._transport = transport
         self._api_base_url = api_base_url.rstrip("/")
 

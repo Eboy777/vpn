@@ -11,9 +11,22 @@ from vpn_service.http.responses import error_response
 
 class RequestContractMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        json_post = request.url.path in {"/api/pairing/init", "/api/nodes/select"} or bool(
+        json_post = request.url.path in {
+            "/api/pairing/init",
+            "/api/nodes/select",
+            "/api/telemetry/lifecycle",
+            "/api/telemetry/events",
+        } or bool(
             re.fullmatch(
                 r"/internal/nodes/[0-9a-f-]{36}/credentials/ack",
+                request.url.path,
+            )
+            or re.fullmatch(
+                r"/internal/nodes/[0-9a-f-]{36}/telemetry",
+                request.url.path,
+            )
+            or re.fullmatch(
+                r"/internal/canaries/[0-9a-f-]{36}/checks",
                 request.url.path,
             )
         )

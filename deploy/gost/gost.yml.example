@@ -10,8 +10,11 @@ services:
     handler:
       type: http
       auther: vpn-users
+      observer: vpn-user-traffic
       metadata:
         idleTimeout: 10m
+        observer.period: 15s
+        observer.resetTraffic: true
         limiterRefreshInterval: 30s
         limiterCleanupInterval: 5m
     listener:
@@ -25,6 +28,14 @@ authers:
     reload: 5s
     file:
       path: /var/lib/vpn-node/auth.txt
+
+# Sends only per-user counters to a loopback collector. It does not send target hosts or content.
+observers:
+  - name: vpn-user-traffic
+    plugin:
+      type: http
+      addr: http://127.0.0.1:9001/observer
+      timeout: 5s
 
 # Blacklist private, loopback, link-local, documentation and multicast destinations. The
 # nftables policy repeats this check after DNS resolution, which also closes DNS-rebinding paths.
@@ -62,14 +73,14 @@ rlimiters:
   - name: vpn-request-rate
     limits:
       - "$ 1000"
-      - "$$ 30"
+      - "$$ 60"
 
 # Keep a single abusive client from exhausting all node file descriptors.
 climiters:
   - name: vpn-connections
     limits:
       - "$ 5000"
-      - "$$ 128"
+      - "$$ 256"
 
 # Loopback-only aggregate metrics for capacity and abuse alerts. Never expose this port publicly.
 metrics:

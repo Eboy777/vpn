@@ -1,0 +1,32 @@
+discovery.docker "control" {
+  host = "unix:///var/run/docker.sock"
+}
+
+loki.relabel "control" {
+  forward_to = []
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "control" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.control.targets
+  labels        = { host = "control" }
+  relabel_rules = loki.relabel.control.rules
+  forward_to    = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

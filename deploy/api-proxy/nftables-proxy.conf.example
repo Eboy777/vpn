@@ -5,11 +5,13 @@ table inet vpn_proxy {
         type filter hook input priority filter; policy drop;
         ct state established,related accept
         iifname "lo" accept
-        ip protocol icmp accept
-        ip6 nexthdr ipv6-icmp accept
+        ip protocol icmp limit rate 100/second burst 200 packets accept
+        ip6 nexthdr ipv6-icmp limit rate 100/second burst 200 packets accept
 
         # Replace with the administrator's fixed management network.
-        ip saddr 203.0.113.10/32 tcp dport 22 accept
+        ip saddr 203.0.113.10/32 tcp dport 22 ct state new limit rate 10/minute burst 5 packets accept
+        tcp dport 80 tcp flags syn limit rate over 500/second burst 1000 packets counter drop
+        tcp dport 443 tcp flags syn limit rate over 3000/second burst 6000 packets counter drop
         tcp dport { 80, 443 } accept
     }
 

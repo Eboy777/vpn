@@ -17,7 +17,7 @@ from vpn_service.application.node_assignment import (
 from vpn_service.config import Settings
 from vpn_service.domain.enums import NodeSelectionMode, NodeStatus, UserStatus
 from vpn_service.domain.errors import ApplicationError
-from vpn_service.persistence.models import Node, User
+from vpn_service.persistence.models import Node, User, UserActivityEvent
 from vpn_service.persistence.rate_limits import consume_rate_limit
 from vpn_service.security.credentials import ProxyCredentialsCipher
 from vpn_service.security.tokens import TokenHasher
@@ -172,6 +172,8 @@ class AccessService:
         self,
         device: AuthenticatedDevice,
         requested_node_id: uuid.UUID | None,
+        *,
+        source_ip: str,
     ) -> NodeSelectionResult:
         await self._enforce_rate_limit(
             scope="node-select-minute",
@@ -231,6 +233,20 @@ class AccessService:
                 user.node_selection_mode = NodeSelectionMode.AUTO.value
 
             changed = previous != (user.assigned_node_id, user.node_selection_mode)
+            if changed:
+                session.add(
+                    UserActivityEvent(
+                        event_id=uuid.uuid4(),
+                        user_id=user.id,
+                        device_id=device.device_row_id,
+                        node_id=user.assigned_node_id,
+                        session_id=None,
+                        event_type="node_selected",
+                        error_code=None,
+                        source_ip=source_ip,
+                        received_at=now,
+                    )
+                )
             return NodeSelectionResult(
                 assigned_node=_public_node(node),
                 node_selection_mode=user.node_selection_mode,

@@ -1,0 +1,25 @@
+loki.relabel "journal" {
+  forward_to = []
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+}
+
+loki.source.journal "vpn" {
+  forward_to    = [loki.write.central.receiver]
+  relabel_rules = loki.relabel.journal.rules
+  labels        = { host = sys.env("NODE_NAME"), source = "journald" }
+  max_age       = "1h"
+}
+
+loki.write "central" {
+  endpoint {
+    url = sys.env("LOKI_PUSH_URL")
+    basic_auth {
+      username = sys.env("LOKI_USERNAME")
+      password = sys.env("LOKI_PASSWORD")
+    }
+  }
+}

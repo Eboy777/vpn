@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from vpn_service.application.admin_alerts import enqueue_admin_alert
 from vpn_service.application.node_assignment import choose_node
 from vpn_service.config import Settings
 from vpn_service.domain.enums import NodeSelectionMode, NodeStatus, UserStatus
@@ -84,8 +85,38 @@ class NodeSnapshotWatchdog:
                     node.recovery_ready = False
                     node.snapshot_ack_deadline = None
                     blocked_nodes += 1
+                    await enqueue_admin_alert(
+                        session,
+                        event_name="node_blocked",
+                        idempotency_key=(
+                            f"admin-alert:node-blocked:sync:{node.id}:"
+                            f"{node.credentials_revision or 'none'}:{now.isoformat()}"
+                        ),
+                        aggregate_id=node.id,
+                        data={
+                            "node_id": str(node.id),
+                            "node_name": node.name,
+                            "reason": "credential_sync_unhealthy",
+                        },
+                        now=now,
+                    )
 
-        reassigned, without_capacity = await self._reassign_blocked_users()
+        reassigned, without_capacity = await self.reassign_blocked_users()
+        if without_capacity:
+            async with self._sessions.begin() as session:
+                alert_now = await _database_now(session)
+                bucket = int(alert_now.timestamp()) // 3600
+                await enqueue_admin_alert(
+                    session,
+                    event_name="capacity_exhausted",
+                    idempotency_key=f"admin-alert:capacity:watchdog:{bucket}",
+                    aggregate_id=None,
+                    data={
+                        "reassigned_users": reassigned,
+                        "users_without_capacity": without_capacity,
+                    },
+                    now=alert_now,
+                )
         return SnapshotWatchdogResult(
             missed_ack_windows=missed_windows,
             blocked_nodes=blocked_nodes,
@@ -93,7 +124,7 @@ class NodeSnapshotWatchdog:
             users_without_capacity=without_capacity,
         )
 
-    async def _reassign_blocked_users(self) -> tuple[int, int]:
+    async def reassign_blocked_users(self) -> tuple[int, int]:
         async with self._sessions() as session:
             user_ids = list(
                 (

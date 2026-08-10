@@ -1,0 +1,22 @@
+[Unit]
+Description=Virgo GOST traffic and host metrics observer
+After=network-online.target gost.service vpn-node-sync.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=gost
+UMask=0077
+EnvironmentFile=/etc/vpn-node/node.env
+ExecStart=/opt/vpn-node/bin/vpn-node-observer
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/etc/gost/tls
+
+[Install]
+WantedBy=multi-user.target

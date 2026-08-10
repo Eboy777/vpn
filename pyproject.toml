@@ -35,6 +35,9 @@ packages = ["src/vpn_service"]
 vpn-node-sync = "vpn_service.node_agent.main:main"
 vpn-admin = "vpn_service.admin_cli:main"
 vpn-api-proxy-check = "vpn_service.api_proxy_check:main"
+vpn-admin-password-hash = "vpn_service.admin_password_cli:main"
+vpn-node-observer = "vpn_service.node_observer.main:main"
+vpn-canary = "vpn_service.canary_agent.main:main"
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers"

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Virgo Admin</title>
+  <link rel="stylesheet" href="/admin/assets/admin.css">
+  <script src="/admin/assets/admin.js" defer></script>
+</head>
+<body>
+  <header>
+    <div><span class="brand-mark">V</span><strong>Virgo Admin</strong></div>
+    <button id="refresh" type="button">Обновить</button>
+  </header>
+  <main>
+    <p id="notice" class="notice" hidden></p>
+    <section>
+      <h1>Состояние сервиса</h1>
+      <div id="overview" class="cards"></div>
+      <p id="download-note" class="muted"></p>
+    </section>
+
+    <section>
+      <div class="section-title"><h2>VPN-ноды</h2><span id="nodes-updated" class="muted"></span></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Нода</th><th>Состояние</th><th>Пользователи</th><th>Здоровье</th><th>Нагрузка</th><th>Трафик</th><th>Действия</th></tr></thead>
+        <tbody id="nodes"></tbody>
+      </table></div>
+      <details>
+        <summary>Добавить ноду</summary>
+        <form id="add-node" class="form-grid">
+          <input name="name" required maxlength="64" placeholder="Название, например NL-1">
+          <input name="host" required maxlength="253" placeholder="Домен ноды">
+          <input name="country_code" required pattern="[A-Z]{2}" maxlength="2" placeholder="NL">
+          <input name="provider" required maxlength="100" placeholder="Провайдер">
+          <input name="capacity_users" required type="number" min="1" placeholder="Вместимость">
+          <button type="submit">Создать warming-ноду</button>
+        </form>
+      </details>
+      <details>
+        <summary>Добавить российскую канарейку</summary>
+        <form id="add-canary" class="form-grid compact">
+          <input name="name" required maxlength="100" placeholder="Название канарейки">
+          <button type="submit">Создать и выдать токен</button>
+        </form>
+      </details>
+    </section>
+
+    <section>
+      <div class="section-title"><h2>Пользователи</h2><span id="users-updated" class="muted"></span></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Telegram</th><th>Доступ</th><th>IP / активность</th><th>Нода</th><th>Трафик</th><th>Соединения</th><th>VPN-сеансы</th></tr></thead>
+        <tbody id="users"></tbody>
+      </table></div>
+    </section>
+
+    <section>
+      <h2>Последние безопасные события</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Время</th><th>Пользователь</th><th>Событие</th><th>Ошибка</th><th>IP</th></tr></thead>
+        <tbody id="events"></tbody>
+      </table></div>
+      <p class="privacy">Домены, URL, содержимое трафика, токены и пароли не собираются.</p>
+    </section>
+  </main>
+</body>
+</html>

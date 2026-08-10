@@ -1,0 +1,98 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Первых запусков расширения",
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "virgo_extension_installations_total", "refId": "A"}]
+    },
+    {
+      "type": "stat",
+      "title": "Бесплатный период",
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "virgo_users{access=\"free\"}", "refId": "A"}]
+    },
+    {
+      "type": "stat",
+      "title": "Платная подписка",
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "virgo_users{access=\"paid\"}", "refId": "A"}]
+    },
+    {
+      "type": "stat",
+      "title": "Платёжных ссылок",
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "virgo_payment_links_created_total", "refId": "A"}]
+    },
+    {
+      "type": "stat",
+      "title": "Активные соединения",
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum(virgo_node_current_connections)", "refId": "A"}]
+    },
+    {
+      "type": "stat",
+      "title": "Ноды online",
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum(virgo_node_gost_up)", "refId": "A"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU / RAM / диск нод",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}},
+      "targets": [
+        {"expr": "virgo_node_cpu_percent", "legendFormat": "CPU {{node_id}}", "refId": "A"},
+        {"expr": "virgo_node_memory_percent", "legendFormat": "RAM {{node_id}}", "refId": "B"},
+        {"expr": "virgo_node_disk_percent", "legendFormat": "Диск {{node_id}}", "refId": "C"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Трафик нод",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "Bps"}},
+      "targets": [
+        {"expr": "rate(virgo_node_input_bytes_total[5m])", "legendFormat": "Входящий {{node_id}}", "refId": "A"},
+        {"expr": "rate(virgo_node_output_bytes_total[5m])", "legendFormat": "Исходящий {{node_id}}", "refId": "B"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Ошибки трафика и возраст телеметрии",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "increase(virgo_node_traffic_errors_total[5m])", "legendFormat": "Ошибки {{node_id}}", "refId": "A"},
+        {"expr": "virgo_node_runtime_age_seconds", "legendFormat": "Возраст {{node_id}}", "refId": "B"}
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Централизованные журналы",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [{"expr": "{source=~\"journald|.+\"}", "refId": "A"}]
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 41,
+  "tags": ["virgo", "vpn"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "Virgo — здоровье и аналитика",
+  "uid": "virgo-overview",
+  "version": 1
+}

@@ -67,6 +67,21 @@ export class ControlApiClient {
     });
   }
 
+  lifecycle(event) {
+    return this.request("/api/telemetry/lifecycle", {
+      method: "POST",
+      body: event,
+    });
+  }
+
+  telemetry(deviceToken, event) {
+    return this.request("/api/telemetry/events", {
+      method: "POST",
+      token: deviceToken,
+      body: event,
+    });
+  }
+
   async request(path, {method = "GET", token = null, body = undefined} = {}) {
     if (!path.startsWith("/")) {
       throw new Error("API path must be absolute");

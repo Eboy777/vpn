@@ -134,6 +134,24 @@ class Settings(BaseSettings):
     node_snapshot_heartbeat_timeout_seconds: Annotated[int, Field(ge=30)] = 75
     internal_api_rate_per_minute: Annotated[int, Field(gt=0)] = 120
     node_snapshot_issue_retention_seconds: Annotated[int, Field(ge=3600)] = 86_400
+    telemetry_install_rate_per_minute: Annotated[int, Field(gt=0)] = 30
+    telemetry_device_rate_per_minute: Annotated[int, Field(gt=0)] = 120
+    operations_health_poll_seconds: Annotated[int, Field(ge=30)] = 60
+    operations_node_telemetry_stale_seconds: Annotated[int, Field(ge=60)] = 120
+    operations_alert_cooldown_seconds: Annotated[int, Field(ge=300)] = 3600
+    operations_cpu_warning_percent: Annotated[float, Field(ge=50, le=100)] = 90
+    operations_memory_warning_percent: Annotated[float, Field(ge=50, le=100)] = 90
+    operations_disk_warning_percent: Annotated[float, Field(ge=50, le=100)] = 85
+    operations_tls_warning_days: Annotated[int, Field(ge=1, le=90)] = 14
+    analytics_raw_event_retention_days: Annotated[int, Field(ge=7, le=365)] = 90
+    analytics_cleanup_interval_seconds: Annotated[int, Field(ge=300)] = 3600
+
+    admin_panel_enabled: bool = False
+    admin_panel_username: Annotated[str, Field(pattern=r"^[A-Za-z0-9_.-]{3,64}$")] = "admin"
+    admin_panel_password_hash: SecretStr | None = None
+    admin_telegram_bot_token: SecretStr | None = None
+    admin_telegram_chat_ids_json: list[int] = Field(default_factory=list)
+    metrics_scrape_token: SecretStr | None = None
 
     tariffs_json: dict[str, TariffSettings]
     robokassa_hash_algorithm: Literal["SHA256"] = "SHA256"
@@ -218,6 +236,19 @@ class Settings(BaseSettings):
             raise ValueError("canary target quorum exceeds configured targets")
         if len({url.host for url in self.canary_probe_urls_json}) < 2:
             raise ValueError("canary probes must use at least two independent hosts")
+        if len(set(self.admin_telegram_chat_ids_json)) != len(self.admin_telegram_chat_ids_json):
+            raise ValueError("admin Telegram chat IDs must be unique")
+        if any(chat_id == 0 for chat_id in self.admin_telegram_chat_ids_json):
+            raise ValueError("admin Telegram chat IDs must be non-zero")
+        if (
+            self.admin_panel_password_hash is not None
+            and re.fullmatch(
+                r"pbkdf2_sha256\$[1-9][0-9]{5,7}\$[A-Za-z0-9_-]{22}\$[A-Za-z0-9_-]{43}",
+                self.admin_panel_password_hash.get_secret_value(),
+            )
+            is None
+        ):
+            raise ValueError("ADMIN_PANEL_PASSWORD_HASH has an invalid format")
 
         tariff = self.tariffs_json.get("vpn_30d")
         if tariff is None or len(self.tariffs_json) != 1:
@@ -326,6 +357,17 @@ class Settings(BaseSettings):
             raise ValueError("production node snapshot settings must match the MVP profile")
         if self.telegram_delivery_mode != "webhook":
             raise ValueError("production Telegram delivery mode must be webhook")
+        if not self.admin_panel_enabled or self.admin_panel_password_hash is None:
+            raise ValueError("production requires the password-protected admin panel")
+        if self.admin_telegram_bot_token is None or not self.admin_telegram_chat_ids_json:
+            raise ValueError("production requires the separate admin Telegram bot")
+        if len(self.admin_telegram_bot_token.get_secret_value()) < 32:
+            raise ValueError("ADMIN_TELEGRAM_BOT_TOKEN must contain at least 32 characters")
+        if (
+            self.metrics_scrape_token is None
+            or len(self.metrics_scrape_token.get_secret_value()) < 32
+        ):
+            raise ValueError("production requires a strong metrics scrape token")
         if not self.allowed_extension_origins_json:
             raise ValueError("production requires at least one allowed extension origin")
         telegram_required = {

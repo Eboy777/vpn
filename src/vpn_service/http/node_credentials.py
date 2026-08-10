@@ -10,6 +10,7 @@ from vpn_service.application.node_credentials import (
     NodeAuthenticator,
     NodeCredentialsService,
 )
+from vpn_service.application.node_telemetry import NodeTelemetryService
 from vpn_service.domain.errors import ApplicationError, ErrorDetail
 from vpn_service.http.pairing import _require_json
 from vpn_service.http.responses import ContractJSONResponse, no_store_headers
@@ -17,6 +18,8 @@ from vpn_service.http.schemas import (
     NodeCredentialsAckRequest,
     NodeCredentialsAckResponse,
     NodeCredentialsSnapshotResponse,
+    NodeTelemetryRequest,
+    NodeTelemetryResponse,
 )
 
 router = APIRouter(prefix="/internal/nodes", tags=["node-credentials"])
@@ -89,6 +92,28 @@ async def credentials_ack(
     )
     NodeCredentialsAckResponse.model_validate(result.response)
     return ContractJSONResponse(content=result.response, headers=no_store_headers())
+
+
+@router.post("/{node_id}/telemetry", response_model=NodeTelemetryResponse)
+async def node_telemetry(
+    request: Request,
+    node_id: str,
+    payload: NodeTelemetryRequest,
+) -> ContractJSONResponse:
+    parsed_node_id = _canonical_node_id(node_id)
+    _require_json(request)
+    if request.query_params:
+        raise ApplicationError(400, "INVALID_REQUEST", "Request validation failed")
+    service: NodeTelemetryService | None = request.app.state.node_telemetry_service
+    if service is None:
+        raise ApplicationError(503, "SERVICE_UNAVAILABLE", "Service is unavailable")
+    response = await service.record(
+        await _authenticate(request),
+        requested_node_id=parsed_node_id,
+        payload=payload,
+    )
+    NodeTelemetryResponse.model_validate(response)
+    return ContractJSONResponse(content=response, headers=no_store_headers())
 
 
 async def _authenticate(request: Request) -> AuthenticatedNode:

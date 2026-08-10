@@ -12,7 +12,10 @@ process without blocking the host's own control-plane traffic.
    values. Keep `/var/lib/vpn-node/auth.txt` owned by root and readable by group `gost` only
    (`0640`, group `gost`). The sync-agent service runs as `root:gost`, writes auth files as `0640`
    and keeps its private state as `0600`.
-3. Copy `gost.service.example` to `/etc/systemd/system/gost.service`.
+3. Copy `gost.service.example`, `vpn-node-sync.service`, and `vpn-node-observer.service` to
+   `/etc/systemd/system/`. Install the Python package in `/opt/vpn-node`, configure
+   `/etc/vpn-node/node.env`, and start both node agents. The observer listens only on loopback;
+   GOST sends it authenticated-user counters every 15 seconds.
 4. Copy `nftables-node.conf.example` to `/etc/nftables.d/vpn-node.nft`. Replace the documentation
    SSH source addresses with exact administrator `/32` and/or `/128` addresses; remove an unused
    address family rather than widening it.
@@ -28,11 +31,13 @@ process without blocking the host's own control-plane traffic.
 - GOST-originated TCP connections to 22, 25, 465, 587 and 2525 are rejected;
 - GOST cannot reach loopback, RFC1918, link-local, carrier-grade NAT, multicast or other reserved
   destination ranges, including common cloud metadata paths;
-- GOST allows at most 5,000 concurrent connections per node and 128 per source IP;
-- proxy request rate is at most 1,000/s per node and 30/s per source IP;
+- GOST allows at most 5,000 concurrent connections per node and 256 per source IP;
+- proxy request rate is at most 1,000/s per node and 60/s per source IP;
 - one proxied connection is capped at 25 MB/s in each direction and idle CONNECT tunnels close
   after 10 minutes;
 - aggregate GOST metrics are exposed only on `127.0.0.1:9000/metrics` for capacity/abuse alerts.
+- authenticated per-user counters and host health are sent to the control API every 15 seconds;
+  target sites and traffic contents are not included.
 
 The defaults are deliberately conservative. Change them only after load tests on the actual VPS.
 These are service/IP controls, not per-account traffic quotas. Per-user dynamic limits require an

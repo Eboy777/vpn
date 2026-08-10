@@ -31,7 +31,9 @@ class DeviceAuthenticator:
         self._settings = settings
         self._tokens = TokenHasher(settings)
 
-    async def authenticate(self, raw_token: str) -> AuthenticatedDevice:
+    async def authenticate(
+        self, raw_token: str, *, source_ip: str | None = None
+    ) -> AuthenticatedDevice:
         candidates = self._tokens.candidates("device", raw_token)
         predicate = or_(
             *(
@@ -68,6 +70,15 @@ class DeviceAuthenticator:
                 seconds=self._settings.device_last_seen_write_interval_seconds
             ):
                 device.last_seen_at = normalized_now
+            if source_ip is not None and (
+                device.last_ip != source_ip
+                or device.last_ip_at is None
+                or device.last_ip_at
+                <= normalized_now
+                - timedelta(seconds=self._settings.device_last_seen_write_interval_seconds)
+            ):
+                device.last_ip = source_ip
+                device.last_ip_at = normalized_now
             return AuthenticatedDevice(
                 device_row_id=device.id,
                 device_id=device.device_id,

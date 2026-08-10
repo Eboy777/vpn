@@ -15,6 +15,8 @@ _PATH_METHODS = {
     "/api/nodes": "GET",
     "/api/nodes/select": "POST",
     "/api/payments/create": "POST",
+    "/api/telemetry/lifecycle": "POST",
+    "/api/telemetry/events": "POST",
 }
 _ALLOWED_HEADERS = {"authorization", "content-type", "idempotency-key", "x-request-id"}
 _ALLOW_HEADERS_VALUE = "Authorization, Content-Type, Idempotency-Key, X-Request-ID"

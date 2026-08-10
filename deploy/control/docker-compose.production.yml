@@ -1,3 +1,5 @@
+name: vpn-control
+
 x-app: &app
   build:
     context: ../..

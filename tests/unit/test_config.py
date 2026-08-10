@@ -66,6 +66,9 @@ def test_production_profile_accepts_only_approved_values(
         ({"internal_api_rate_per_minute": 121}, "snapshot settings must match"),
         ({"node_block_failure_threshold": 2}, "thresholds must be 3 failures"),
         ({"telegram_delivery_mode": "polling"}, "delivery mode must be webhook"),
+        ({"admin_panel_enabled": False}, "password-protected admin panel"),
+        ({"admin_telegram_chat_ids_json": []}, "separate admin Telegram bot"),
+        ({"metrics_scrape_token": None}, "strong metrics scrape token"),
         ({"payments_production_enabled": True}, "production payments remain disabled"),
         ({"robokassa_is_test": False}, "must remain in test mode"),
         (

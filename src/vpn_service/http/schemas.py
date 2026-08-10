@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class StrictRequest(BaseModel):
@@ -125,6 +125,31 @@ class NodeSelectionResponse(StrictRequest):
     changed: bool
 
 
+class ExtensionLifecycleRequest(StrictRequest):
+    event_id: uuid.UUID
+    installation_id: uuid.UUID
+    event_type: Literal["installed", "launched", "updated"]
+    extension_version: Annotated[str, Field(pattern=r"^[0-9A-Za-z][0-9A-Za-z._-]{0,31}$")]
+
+
+class DeviceTelemetryRequest(StrictRequest):
+    event_id: uuid.UUID
+    event_type: Literal["vpn_started", "vpn_heartbeat", "vpn_stopped", "connection_error"]
+    session_id: uuid.UUID
+    extension_version: Annotated[str, Field(pattern=r"^[0-9A-Za-z][0-9A-Za-z._-]{0,31}$")]
+    error_code: Annotated[str, Field(pattern=r"^[A-Z0-9_]{1,64}$")] | None = None
+
+    @model_validator(mode="after")
+    def error_code_matches_event(self) -> DeviceTelemetryRequest:
+        if (self.event_type == "connection_error") != (self.error_code is not None):
+            raise ValueError("error_code is required only for connection_error")
+        return self
+
+
+class TelemetryAcceptedResponse(StrictRequest):
+    processed: bool
+
+
 class SnapshotCredentialResponse(StrictRequest):
     proxy_username: Annotated[str, Field(pattern=r"^u_[a-z0-9]{26}$")]
     proxy_password: Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{32}$")]
@@ -149,6 +174,98 @@ class NodeCredentialsAckResponse(StrictRequest):
     node_id: uuid.UUID
     revision: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
     applied_at: datetime
+
+
+class NodeTrafficClientMetric(StrictRequest):
+    proxy_username: Annotated[str, Field(pattern=r"^u_[a-z0-9]{26}$")]
+    total_connections: Annotated[int, Field(strict=True, ge=0, le=2**63 - 1)]
+    current_connections: Annotated[int, Field(strict=True, ge=0, le=2**63 - 1)]
+    input_bytes: Annotated[int, Field(strict=True, ge=0, le=2**63 - 1)]
+    output_bytes: Annotated[int, Field(strict=True, ge=0, le=2**63 - 1)]
+    total_errors: Annotated[int, Field(strict=True, ge=0, le=2**63 - 1)]
+    connection_seconds: Annotated[int, Field(strict=True, ge=0, le=2**63 - 1)]
+
+
+class NodeRuntimeMetricRequest(StrictRequest):
+    cpu_percent: Annotated[float, Field(ge=0, le=100)]
+    memory_percent: Annotated[float, Field(ge=0, le=100)]
+    disk_percent: Annotated[float, Field(ge=0, le=100)]
+    network_rx_bytes: Annotated[int, Field(strict=True, ge=0, le=2**63 - 1)]
+    network_tx_bytes: Annotated[int, Field(strict=True, ge=0, le=2**63 - 1)]
+    gost_up: bool
+    sync_agent_up: bool
+    tls_expires_at: AwareDatetime | None = None
+
+
+class NodeTelemetryRequest(StrictRequest):
+    report_id: uuid.UUID
+    observed_at: AwareDatetime
+    clients: Annotated[list[NodeTrafficClientMetric], Field(max_length=10_000)]
+    runtime: NodeRuntimeMetricRequest
+
+
+class NodeTelemetryResponse(StrictRequest):
+    processed: bool
+    node_id: uuid.UUID
+    report_id: uuid.UUID
+    accepted_clients: Annotated[int, Field(ge=0)]
+
+
+class CanaryTargetResult(StrictRequest):
+    target: Annotated[str, Field(pattern=r"^[A-Za-z0-9.-]{1,253}$")]
+    success: bool
+    latency_ms: Annotated[float, Field(ge=0, le=300_000)] | None = None
+    status_code: Annotated[int, Field(ge=100, le=599)] | None = None
+    error_code: Annotated[str, Field(pattern=r"^[A-Z0-9_]{1,64}$")] | None = None
+
+    @model_validator(mode="after")
+    def result_fields_match_success(self) -> CanaryTargetResult:
+        if self.success and (self.latency_ms is None or self.error_code is not None):
+            raise ValueError("successful target requires latency and no error")
+        if not self.success and self.error_code is None:
+            raise ValueError("failed target requires error_code")
+        return self
+
+
+class CanaryNodeResult(StrictRequest):
+    check_id: uuid.UUID
+    node_id: uuid.UUID
+    targets: Annotated[list[CanaryTargetResult], Field(min_length=2, max_length=10)]
+
+    @model_validator(mode="after")
+    def unique_targets(self) -> CanaryNodeResult:
+        if len({target.target for target in self.targets}) != len(self.targets):
+            raise ValueError("canary targets must be unique per node")
+        return self
+
+
+class CanaryRunRequest(StrictRequest):
+    run_id: uuid.UUID
+    checked_at: AwareDatetime
+    nodes: Annotated[list[CanaryNodeResult], Field(min_length=1, max_length=100)]
+
+    @model_validator(mode="after")
+    def unique_node_results(self) -> CanaryRunRequest:
+        if len({item.node_id for item in self.nodes}) != len(self.nodes):
+            raise ValueError("canary node results must be unique")
+        if len({item.check_id for item in self.nodes}) != len(self.nodes):
+            raise ValueError("canary check IDs must be unique")
+        return self
+
+
+class CanaryNodeOutcome(StrictRequest):
+    node_id: uuid.UUID
+    outcome: Literal["healthy", "failed", "inconclusive", "ignored"]
+    status: Literal["warming", "active", "quiescing", "draining", "dead", "blocked"]
+    failed_checks: Annotated[int, Field(ge=0)]
+    successful_checks: Annotated[int, Field(ge=0)]
+    recovery_ready: bool
+
+
+class CanaryRunResponse(StrictRequest):
+    processed: bool
+    run_id: uuid.UUID
+    outcomes: list[CanaryNodeOutcome]
 
 
 SignedInt64 = Annotated[int, Field(strict=True, ge=-(2**63), le=2**63 - 1)]

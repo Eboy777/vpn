@@ -9,6 +9,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -190,7 +191,102 @@ class Device(Base):
         String(16), nullable=False, default=DeviceStatus.PENDING.value, server_default="pending"
     )
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_ip: Mapped[str | None] = mapped_column(String(45))
+    last_ip_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created_at_column()
+
+
+class ExtensionInstallation(Base):
+    __tablename__ = "extension_installations"
+    __table_args__ = (
+        CheckConstraint("launch_count >= 0", name="launch_count_nonnegative"),
+        Index("ix_extension_installations_last_seen", "last_seen_at"),
+    )
+
+    installation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    extension_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    launch_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    first_seen_at: Mapped[datetime] = created_at_column()
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class ExtensionLifecycleEvent(Base):
+    __tablename__ = "extension_lifecycle_events"
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN ('installed','launched','updated')", name="event_type_values"
+        ),
+        Index("ix_extension_lifecycle_installation", "installation_id", "received_at"),
+    )
+
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    installation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    extension_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_ip: Mapped[str] = mapped_column(String(45), nullable=False)
+    received_at: Mapped[datetime] = created_at_column()
+
+
+class VpnSession(Base):
+    __tablename__ = "vpn_sessions"
+    __table_args__ = (
+        CheckConstraint("status IN ('active','ended','error')", name="status_values"),
+        CheckConstraint("connection_errors >= 0", name="connection_errors_nonnegative"),
+        Index("ix_vpn_sessions_user_started", "user_id", "started_at"),
+        Index("ix_vpn_sessions_active", "status", "last_seen_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    device_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False
+    )
+    node_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("nodes.id", ondelete="SET NULL")
+    )
+    source_ip: Mapped[str] = mapped_column(String(45), nullable=False)
+    extension_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    connection_errors: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    started_at: Mapped[datetime] = created_at_column()
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class UserActivityEvent(Base):
+    __tablename__ = "user_activity_events"
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN ('vpn_started','vpn_heartbeat','vpn_stopped','connection_error',"
+            "'node_selected','payment_link_created')",
+            name="event_type_values",
+        ),
+        Index("ix_user_activity_user_received", "user_id", "received_at"),
+    )
+
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    device_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False
+    )
+    node_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("nodes.id", ondelete="SET NULL")
+    )
+    session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    source_ip: Mapped[str] = mapped_column(String(45), nullable=False)
+    received_at: Mapped[datetime] = created_at_column()
 
 
 class Payment(Base):
@@ -275,6 +371,69 @@ class NodeSnapshotIssue(Base):
     issued_at: Mapped[datetime] = created_at_column()
 
 
+class NodeTelemetryReport(Base):
+    __tablename__ = "node_telemetry_reports"
+    __table_args__ = (
+        CheckConstraint("request_hash ~ '^[0-9a-f]{64}$'", name="request_hash_format"),
+        Index("ix_node_telemetry_node_received", "node_id", "received_at"),
+    )
+
+    report_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    node_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False
+    )
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    response_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    received_at: Mapped[datetime] = created_at_column()
+
+
+class NodeUserTraffic(Base):
+    __tablename__ = "node_user_traffic"
+    __table_args__ = (
+        UniqueConstraint("node_id", "user_id", name="uq_node_user_traffic_node_user"),
+        CheckConstraint("total_connections >= 0", name="total_connections_nonnegative"),
+        CheckConstraint("current_connections >= 0", name="current_connections_nonnegative"),
+        CheckConstraint("input_bytes >= 0", name="input_bytes_nonnegative"),
+        CheckConstraint("output_bytes >= 0", name="output_bytes_nonnegative"),
+        CheckConstraint("total_errors >= 0", name="total_errors_nonnegative"),
+        CheckConstraint("connection_seconds >= 0", name="connection_seconds_nonnegative"),
+        Index("ix_node_user_traffic_user", "user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    node_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    total_connections: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    current_connections: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    input_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    output_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    total_errors: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    connection_seconds: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    last_reported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class NodeRuntimeMetric(Base):
+    __tablename__ = "node_runtime_metrics"
+
+    node_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("nodes.id", ondelete="CASCADE"), primary_key=True
+    )
+    cpu_percent: Mapped[float] = mapped_column(Float, nullable=False)
+    memory_percent: Mapped[float] = mapped_column(Float, nullable=False)
+    disk_percent: Mapped[float] = mapped_column(Float, nullable=False)
+    network_rx_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    network_tx_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    gost_up: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    sync_agent_up: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    tls_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class Canary(Base):
     __tablename__ = "canaries"
     __table_args__ = (CheckConstraint("status IN ('active','revoked')", name="status_values"),)
@@ -286,6 +445,22 @@ class Canary(Base):
     )
     last_report_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created_at_column()
+
+
+class CanaryRun(Base):
+    __tablename__ = "canary_runs"
+    __table_args__ = (
+        CheckConstraint("request_hash ~ '^[0-9a-f]{64}$'", name="request_hash_format"),
+    )
+
+    run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    canary_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("canaries.id", ondelete="CASCADE"), nullable=False
+    )
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    response_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    received_at: Mapped[datetime] = created_at_column()
 
 
 class NodeAuthToken(Base):
