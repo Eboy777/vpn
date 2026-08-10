@@ -2,6 +2,7 @@ import {BUILD_CONFIG} from "./src/config.js";
 import {renderTelegramQr} from "./src/qr.js";
 
 const screens = [...document.querySelectorAll("[data-screen]")];
+const appShell = document.querySelector(".app-shell");
 const notice = document.querySelector("#notice");
 const version = document.querySelector("#version");
 const iconNav = document.querySelector("#icon-nav");
@@ -136,6 +137,8 @@ function render() {
   if (viewModel.paired && !["dashboard", "tariffs", "locations", "settings"].includes(screen)) {
     screen = "dashboard";
   }
+  appShell.classList.toggle("scrollable", ["tariffs", "locations"].includes(screen));
+  appShell.scrollTop = 0;
   for (const element of screens) element.hidden = element.dataset.screen !== screen;
 
   hideNotice();
