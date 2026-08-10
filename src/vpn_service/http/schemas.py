@@ -11,6 +11,15 @@ class StrictRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class DiscoveryDocumentResponse(StrictRequest):
+    version: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    generated_at: AwareDatetime
+    expires_at: AwareDatetime
+    control_urls: Annotated[list[str], Field(min_length=2, max_length=20)]
+    key_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{1,32}$")]
+    signature: Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{86}$")]
+
+
 class PairingInitRequest(StrictRequest):
     device_id: uuid.UUID
 
@@ -75,7 +84,7 @@ class VpnStatusResponse(StrictRequest):
     unavailable_reason: Literal["ACCESS_EXPIRED", "USER_BLOCKED", "NO_ACTIVE_NODE"] | None
     node: PublicNodeResponse | None
     credentials: ProxyCredentialsResponse | None
-    bypass_list: Annotated[list[str], Field(min_length=1, max_length=10)]
+    bypass_list: Annotated[list[str], Field(min_length=1, max_length=32)]
 
 
 class StatusResponse(StrictRequest):
@@ -260,10 +269,27 @@ class CanaryNodeResult(StrictRequest):
         return self
 
 
+class CanaryIngressResult(StrictRequest):
+    url: Annotated[str, Field(pattern=r"^https://[A-Za-z0-9.-]{1,253}$")]
+    success: bool
+    latency_ms: Annotated[float, Field(ge=0, le=300_000)]
+    status_code: Annotated[int, Field(ge=100, le=599)] | None = None
+    error_code: Annotated[str, Field(pattern=r"^[A-Z0-9_]{1,64}$")] | None = None
+
+    @model_validator(mode="after")
+    def ingress_fields_match_success(self) -> CanaryIngressResult:
+        if self.success and (self.status_code is None or self.error_code is not None):
+            raise ValueError("successful ingress requires status and no error")
+        if not self.success and self.error_code is None:
+            raise ValueError("failed ingress requires error_code")
+        return self
+
+
 class CanaryRunRequest(StrictRequest):
     run_id: uuid.UUID
     checked_at: AwareDatetime
     nodes: Annotated[list[CanaryNodeResult], Field(min_length=1, max_length=100)]
+    ingresses: Annotated[list[CanaryIngressResult], Field(min_length=2, max_length=20)]
 
     @model_validator(mode="after")
     def unique_node_results(self) -> CanaryRunRequest:
@@ -271,6 +297,8 @@ class CanaryRunRequest(StrictRequest):
             raise ValueError("canary node results must be unique")
         if len({item.check_id for item in self.nodes}) != len(self.nodes):
             raise ValueError("canary check IDs must be unique")
+        if len({item.url for item in self.ingresses}) != len(self.ingresses):
+            raise ValueError("canary ingress URLs must be unique")
         return self
 
 
@@ -287,6 +315,8 @@ class CanaryRunResponse(StrictRequest):
     processed: bool
     run_id: uuid.UUID
     outcomes: list[CanaryNodeOutcome]
+    ingresses: list[CanaryIngressResult]
+    control_urls: Annotated[list[str], Field(min_length=2, max_length=20)]
 
 
 SignedInt64 = Annotated[int, Field(strict=True, ge=-(2**63), le=2**63 - 1)]

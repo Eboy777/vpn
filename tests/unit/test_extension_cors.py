@@ -35,6 +35,7 @@ async def cors_client(
 @pytest.mark.parametrize(
     ("path", "method", "headers"),
     [
+        ("/api/discovery/control-ingresses", "GET", "x-request-id"),
         ("/api/pairing/init", "POST", "content-type,x-request-id"),
         ("/api/pairing/status", "GET", "authorization,x-request-id"),
         ("/api/status", "GET", "authorization,x-request-id"),
@@ -98,6 +99,7 @@ async def test_extension_cors_rejects_wrong_method_and_origin(
 @pytest.mark.parametrize(
     ("method", "path", "kwargs"),
     [
+        ("GET", "/api/discovery/control-ingresses", {}),
         ("GET", "/api/status", {"headers": {"Authorization": "Bearer " + "a" * 43}}),
         ("GET", "/api/nodes", {"headers": {"Authorization": "Bearer " + "a" * 43}}),
         (

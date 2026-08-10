@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
 import {ControlApiClient, ControlApiError} from "../src/api-client.js";
 import {controlHostnames, validateBuildConfig} from "../src/config.js";
+import {verifyDiscoveryDocument} from "../src/discovery.js";
 import {
   createProxyController,
   isCurrentProxyChallenge,
@@ -64,6 +65,38 @@ test("network error falls back once and keeps the request ID", async () => {
   assert.equal(calls[1].options.headers["X-Request-ID"], "request-id");
   assert.equal(calls[0].options.headers.Authorization, `Bearer ${"d".repeat(43)}`);
   assert.equal(calls[0].options.headers["Content-Type"], undefined);
+});
+
+test("signed discovery updates control addresses without an extension update", async () => {
+  const keys = await crypto.subtle.generateKey(
+    {name: "ECDSA", namedCurve: "P-256"},
+    true,
+    ["sign", "verify"],
+  );
+  const publicKey = encodeBase64Url(
+    new Uint8Array(await crypto.subtle.exportKey("raw", keys.publicKey)),
+  );
+  const now = Date.now();
+  const document = {
+    control_urls: ["https://new-a.vpn.test", "https://new-b.vpn.test"],
+    expires_at: new Date(now + 3_600_000).toISOString(),
+    generated_at: new Date(now).toISOString(),
+    key_id: "test",
+    version: "a".repeat(64),
+  };
+  document.signature = encodeBase64Url(new Uint8Array(await crypto.subtle.sign(
+    {name: "ECDSA", hash: "SHA-256"},
+    keys.privateKey,
+    new TextEncoder().encode(JSON.stringify(document)),
+  )));
+  const verified = await verifyDiscoveryDocument(document, {test: publicKey}, {now});
+  const client = new ControlApiClient({
+    config,
+    fetchImpl: async () => new Response("{}"),
+  });
+  client.setControlUrls(verified.control_urls);
+
+  assert.deepEqual(client.controlHostnames(), ["new-a.vpn.test", "new-b.vpn.test"]);
 });
 
 test("429 is global and is never bypassed through fallback", async () => {
@@ -290,6 +323,10 @@ test("manifest has only the required MV3 permissions and local popup code", asyn
   assert.equal(insideLogo.readUInt32BE(20), 256);
   assert.equal("content_security_policy" in manifest, false);
 });
+
+function encodeBase64Url(value) {
+  return Buffer.from(value).toString("base64url");
+}
 
 const failures = [];
 for (const [name, implementation] of tests) {

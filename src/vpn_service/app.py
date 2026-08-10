@@ -9,6 +9,7 @@ from vpn_service.application.access import AccessService
 from vpn_service.application.admin_dashboard import AdminDashboardService
 from vpn_service.application.canary import CanaryAuthenticator, CanaryReportService
 from vpn_service.application.device_auth import DeviceAuthenticator
+from vpn_service.application.discovery import DiscoveryService
 from vpn_service.application.health import DatabaseProbe
 from vpn_service.application.metrics import MetricsService
 from vpn_service.application.node_credentials import NodeAuthenticator, NodeCredentialsService
@@ -23,6 +24,7 @@ from vpn_service.http.admin_headers import AdminSecurityHeadersMiddleware
 from vpn_service.http.canary import router as canary_router
 from vpn_service.http.contract import RequestContractMiddleware
 from vpn_service.http.cors import ExtensionCorsMiddleware
+from vpn_service.http.discovery import router as discovery_router
 from vpn_service.http.errors import install_error_handlers
 from vpn_service.http.health import router as health_router
 from vpn_service.http.metrics import router as metrics_router
@@ -102,6 +104,9 @@ def create_app(
         AdminDashboardService(database.sessions) if database is not None else None
     )
     app.state.metrics_service = MetricsService(database.sessions) if database is not None else None
+    app.state.discovery_service = (
+        DiscoveryService(database.sessions, resolved_settings) if database is not None else None
+    )
     install_error_handlers(app)
     app.add_middleware(RequestContractMiddleware)
     app.add_middleware(AdminSecurityHeadersMiddleware)
@@ -111,6 +116,7 @@ def create_app(
     )
     app.add_middleware(RequestLoggingMiddleware)
     app.include_router(health_router)
+    app.include_router(discovery_router)
     app.include_router(pairing_router)
     app.include_router(telegram_router)
     app.include_router(access_router)

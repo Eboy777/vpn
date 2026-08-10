@@ -25,3 +25,15 @@ def test_admin_panel_exposes_quality_tables_and_funnel() -> None:
     assert 'id="shared-ips"' in html
     assert 'api("quality")' in javascript
     assert "payment_funnel" in javascript
+    assert 'id="ingresses"' in html
+    assert 'api("ingresses")' in javascript
+
+
+def test_extension_uses_only_signed_dynamic_control_addresses() -> None:
+    worker = (ROOT / "extension/service-worker.js").read_text()
+    discovery = (ROOT / "extension/src/discovery.js").read_text()
+
+    assert "verifyDiscoveryDocument" in worker
+    assert "discoveryDocument" in worker
+    assert 'crypto.subtle.verify(' in discovery
+    assert 'namedCurve: "P-256"' in discovery

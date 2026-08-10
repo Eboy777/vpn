@@ -112,6 +112,26 @@ class Node(Base):
     created_at: Mapped[datetime] = created_at_column()
 
 
+class ControlIngress(Base):
+    __tablename__ = "control_ingresses"
+    __table_args__ = (
+        CheckConstraint("priority BETWEEN 1 AND 1000", name="priority_range"),
+        CheckConstraint("url ~ '^https://[^/]+$'", name="https_origin_format"),
+        Index("ix_control_ingresses_enabled_priority", "enabled", "priority", "id"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    url: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    created_at: Mapped[datetime] = created_at_column()
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (

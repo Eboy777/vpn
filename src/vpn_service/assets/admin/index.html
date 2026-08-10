@@ -36,6 +36,20 @@
     </section>
 
     <section>
+      <div class="section-title"><h2>Адреса входных прокси backend</h2><span id="ingresses-signing" class="muted"></span></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Адрес</th><th>Приоритет</th><th>Состояние</th><th>Тип</th><th>Действия</th></tr></thead>
+        <tbody id="ingresses"></tbody>
+      </table></div>
+      <form id="add-ingress" class="form-grid compact">
+        <input name="url" required maxlength="255" type="url" pattern="https://.*" placeholder="https://api-reserve.example.com">
+        <input name="priority" required type="number" min="1" max="1000" value="100" placeholder="Приоритет">
+        <button type="submit">Добавить резервный адрес</button>
+      </form>
+      <p class="privacy">Начальные адреса встроены в расширение и не удаляются. Дополнительные адреса попадают в подписанный список.</p>
+    </section>
+
+    <section>
       <div class="section-title"><h2>VPN-ноды</h2><span id="nodes-updated" class="muted"></span></div>
       <div class="table-wrap"><table>
         <thead><tr><th>Нода</th><th>Состояние</th><th>Пользователи</th><th>Здоровье</th><th>Нагрузка</th><th>Трафик</th><th>Действия</th></tr></thead>

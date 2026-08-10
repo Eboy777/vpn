@@ -58,6 +58,18 @@ def _render_alert(payload: dict[str, Any]) -> str:
             f"Проблема: {_safe(data.get('problem'))}\n"
             f"Значение: {_safe(data.get('value'))}"
         )
+    if event == "control_ingress_failed":
+        return (
+            "🚨 Входной прокси backend недоступен из России\n\n"
+            f"Адрес: {_safe(data.get('url'))}\n"
+            f"Ошибка: {_safe(data.get('error_code'))}\n"
+            f"Проверок подряд: {_safe(data.get('attempts'))}"
+        )
+    if event == "control_ingress_recovered":
+        return (
+            "✅ Входной прокси backend снова доступен из России\n\n"
+            f"Адрес: {_safe(data.get('url'))}"
+        )
     raise TelegramDeliveryError("unsupported admin alert type")
 
 

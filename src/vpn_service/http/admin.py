@@ -26,6 +26,7 @@ from vpn_service.admin_cli import (
 )
 from vpn_service.application.admin_alerts import enqueue_admin_alert
 from vpn_service.application.admin_dashboard import AdminDashboardService
+from vpn_service.application.discovery import DiscoveryService, normalize_https_origin
 from vpn_service.config import Settings
 from vpn_service.domain.enums import AuthTokenStatus, NodeStatus
 from vpn_service.http.client_ip import client_ip
@@ -76,6 +77,16 @@ class AdminCanaryCreate(AdminRequest):
     name: Annotated[str, Field(min_length=1, max_length=100)]
 
 
+class AdminIngressCreate(AdminRequest):
+    url: Annotated[str, Field(min_length=9, max_length=255)]
+    priority: Annotated[int, Field(ge=1, le=1000)] = 100
+
+
+class AdminIngressUpdate(AdminRequest):
+    enabled: bool
+    priority: Annotated[int, Field(ge=1, le=1000)]
+
+
 @router.get("")
 async def admin_index(request: Request):
     _require_admin(request)
@@ -123,6 +134,51 @@ async def admin_quality(request: Request):
 async def admin_events(request: Request, limit: int = 100):
     _require_admin(request)
     return await _dashboard(request).recent_events(limit=max(1, min(limit, 500)))
+
+
+@router.get("/api/ingresses")
+async def admin_ingresses(request: Request):
+    _require_admin(request)
+    return await _discovery(request).list_admin()
+
+
+@router.post("/api/ingresses")
+async def admin_ingress_add(request: Request, payload: AdminIngressCreate):
+    _require_admin(request)
+    _require_admin_action(request)
+    try:
+        normalized = normalize_https_origin(payload.url)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    result = await _discovery(request).add(url=normalized, priority=payload.priority)
+    _audit(request, "control_ingress_add", str(result["id"]))
+    return result
+
+
+@router.post("/api/ingresses/{ingress_id}/update")
+async def admin_ingress_update(
+    request: Request,
+    ingress_id: uuid.UUID,
+    payload: AdminIngressUpdate,
+):
+    _require_admin(request)
+    _require_admin_action(request)
+    result = await _discovery(request).update(
+        ingress_id,
+        enabled=payload.enabled,
+        priority=payload.priority,
+    )
+    _audit(request, "control_ingress_update", str(ingress_id))
+    return result
+
+
+@router.post("/api/ingresses/{ingress_id}/delete")
+async def admin_ingress_delete(request: Request, ingress_id: uuid.UUID):
+    _require_admin(request)
+    _require_admin_action(request)
+    result = await _discovery(request).delete(ingress_id)
+    _audit(request, "control_ingress_delete", str(ingress_id))
+    return result
 
 
 @router.post("/api/nodes")
@@ -345,6 +401,13 @@ def _dashboard(request: Request) -> AdminDashboardService:
     service: AdminDashboardService | None = request.app.state.admin_dashboard_service
     if service is None:
         raise HTTPException(status_code=503)
+    return service
+
+
+def _discovery(request: Request) -> DiscoveryService:
+    service: DiscoveryService | None = request.app.state.discovery_service
+    if service is None:
+        raise HTTPException(status_code=503, detail="Service unavailable")
     return service
 
 

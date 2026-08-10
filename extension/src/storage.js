@@ -17,6 +17,8 @@ export function initialState(deviceId = crypto.randomUUID()) {
     controlRateLimitedUntil: 0,
     controlUnavailableSince: null,
     nextStatusCheckAt: 0,
+    discoveryDocument: null,
+    discoveryRefreshAt: 0,
     lastError: null,
   };
 }
@@ -37,6 +39,10 @@ export function createStateStore(storageArea = chrome.storage.local) {
         nextStatusCheckAt: Number(stored.nextStatusCheckAt) || 0,
         connectionAttemptStartedAt: Number(stored.connectionAttemptStartedAt) || null,
         hadSuccessfulConnection: Boolean(stored.hadSuccessfulConnection),
+        discoveryDocument: stored.discoveryDocument && typeof stored.discoveryDocument === "object"
+          ? structuredClone(stored.discoveryDocument)
+          : null,
+        discoveryRefreshAt: Number(stored.discoveryRefreshAt) || 0,
       };
     },
 
@@ -55,7 +61,13 @@ export function createStateStore(storageArea = chrome.storage.local) {
     },
 
     async reset({controlRateLimitedUntil = 0} = {}) {
-      const reset = {...initialState(), controlRateLimitedUntil};
+      const current = await this.read();
+      const reset = {
+        ...initialState(),
+        controlRateLimitedUntil,
+        discoveryDocument: current.discoveryDocument,
+        discoveryRefreshAt: current.discoveryRefreshAt,
+      };
       await storageArea.set({[STORAGE_KEY]: reset});
       return reset;
     },

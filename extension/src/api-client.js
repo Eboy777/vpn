@@ -1,4 +1,5 @@
 import {BUILD_CONFIG, validateBuildConfig} from "./config.js";
+import {normalizeDiscoveryUrls} from "./discovery.js";
 
 const RETRYABLE_STATUS = new Set([408, 502, 503, 504]);
 
@@ -23,6 +24,7 @@ export class ControlApiClient {
     setRateLimitedUntil = null,
   } = {}) {
     this.config = validateBuildConfig(config);
+    this.controlUrls = [...this.config.controlUrls];
     if (typeof fetchImpl !== "function") {
       throw new Error("fetch is unavailable");
     }
@@ -82,6 +84,18 @@ export class ControlApiClient {
     });
   }
 
+  discovery() {
+    return this.request("/api/discovery/control-ingresses");
+  }
+
+  setControlUrls(values) {
+    this.controlUrls = [...normalizeDiscoveryUrls(values)];
+  }
+
+  controlHostnames() {
+    return this.controlUrls.map((value) => new URL(value).hostname);
+  }
+
   async request(path, {method = "GET", token = null, body = undefined} = {}) {
     if (!path.startsWith("/")) {
       throw new Error("API path must be absolute");
@@ -98,12 +112,12 @@ export class ControlApiClient {
 
     const requestId = this.randomUUID();
     let lastError = null;
-    for (let index = 0; index < this.config.controlUrls.length; index += 1) {
+    for (let index = 0; index < this.controlUrls.length; index += 1) {
       if (index > 0) {
         await this.sleep(this.config.fallbackDelayMs * (2 ** (index - 1)));
       }
       try {
-        const response = await this.fetchOnce(this.config.controlUrls[index], path, {
+        const response = await this.fetchOnce(this.controlUrls[index], path, {
           method,
           token,
           body,
@@ -115,7 +129,7 @@ export class ControlApiClient {
           await this.setRateLimitedUntil(this.rateLimitedUntil);
           throw await responseError(response, retryAfterSeconds);
         }
-        if (RETRYABLE_STATUS.has(response.status) && index + 1 < this.config.controlUrls.length) {
+        if (RETRYABLE_STATUS.has(response.status) && index + 1 < this.controlUrls.length) {
           lastError = await responseError(response);
           continue;
         }
@@ -132,7 +146,7 @@ export class ControlApiClient {
         } else {
           lastError = new ControlApiError("Control API is unavailable");
         }
-        if (index + 1 >= this.config.controlUrls.length) {
+        if (index + 1 >= this.controlUrls.length) {
           break;
         }
       }

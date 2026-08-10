@@ -7,6 +7,7 @@ def test_stage_one_metadata_contains_expected_tables() -> None:
         "canaries",
         "canary_auth_tokens",
         "canary_runs",
+        "control_ingresses",
         "devices",
         "extension_installations",
         "extension_lifecycle_events",

@@ -9,7 +9,11 @@ from urllib.parse import quote
 
 import httpx
 
-from vpn_service.canary_agent.config import CanaryAgentSettings, CanaryNodeTarget
+from vpn_service.canary_agent.config import (
+    CanaryAgentSettings,
+    CanaryNodeTarget,
+    normalize_control_urls,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +32,7 @@ class CanaryAgent:
         )
         self._owns_client = control_client is None
         self._pending_report: dict[str, object] | None = None
+        self._control_urls = list(settings.control_urls)
 
     async def close(self) -> None:
         if self._owns_client:
@@ -39,12 +44,22 @@ class CanaryAgent:
             results = await asyncio.gather(
                 *(self._check_node(node) for node in self._settings.canary_nodes_json)
             )
+            ingress_results = await asyncio.gather(
+                *(self._check_ingress(url) for url in self._control_urls)
+            )
             self._pending_report = {
                 "run_id": str(uuid.uuid4()),
                 "checked_at": checked_at.isoformat().replace("+00:00", "Z"),
                 "nodes": results,
+                "ingresses": ingress_results,
             }
         response = await self._report(self._pending_report)
+        discovered = response.get("control_urls")
+        if isinstance(discovered, list) and 2 <= len(discovered) <= 20:
+            try:
+                self._control_urls = normalize_control_urls([str(value) for value in discovered])
+            except ValueError:
+                logger.error("canary_discovery_urls_invalid")
         self._pending_report = None
         return response
 
@@ -104,6 +119,43 @@ class CanaryAgent:
             "targets": targets,
         }
 
+    async def _check_ingress(self, base_url: str) -> dict[str, object]:
+        started = time.perf_counter()
+        try:
+            response = await self._control_client.get(
+                base_url + "/health/ready",
+                headers={"Cache-Control": "no-cache"},
+            )
+            latency_ms = round((time.perf_counter() - started) * 1000, 3)
+            if response.status_code == 200:
+                return {
+                    "url": base_url,
+                    "success": True,
+                    "latency_ms": latency_ms,
+                    "status_code": response.status_code,
+                    "error_code": None,
+                }
+            return {
+                "url": base_url,
+                "success": False,
+                "latency_ms": latency_ms,
+                "status_code": response.status_code,
+                "error_code": "HTTP_STATUS",
+            }
+        except httpx.TimeoutException:
+            error_code = "TIMEOUT"
+        except httpx.ConnectError:
+            error_code = "CONNECT_ERROR"
+        except httpx.HTTPError:
+            error_code = "NETWORK_ERROR"
+        return {
+            "url": base_url,
+            "success": False,
+            "latency_ms": round((time.perf_counter() - started) * 1000, 3),
+            "status_code": None,
+            "error_code": error_code,
+        }
+
     async def _check_target(
         self,
         client: httpx.AsyncClient,
@@ -153,7 +205,7 @@ class CanaryAgent:
             "Content-Type": "application/json",
         }
         last_error: Exception | None = None
-        for base_url in self._settings.control_urls:
+        for base_url in self._control_urls:
             try:
                 response = await self._control_client.post(
                     base_url + path,

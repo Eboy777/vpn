@@ -27,6 +27,7 @@ tr:last-child td { border-bottom:0; }
 .status.warming,.status.inconclusive { color:#ffd67a; background:#3e341d; }
 td.warning { color:#ffd67a; background:#322b19; }
 td.critical { color:#ff98a5; background:#351b20; }
+td.good { color:#83efb2; background:#132a1e; }
 .muted { color:#969ca7; font-size:12px; }
 .mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
 .actions { display:flex; flex-wrap:wrap; gap:5px; min-width:260px; }

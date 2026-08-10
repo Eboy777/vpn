@@ -9,6 +9,7 @@ from starlette.responses import Response
 from vpn_service.http.responses import error_response
 
 _PATH_METHODS = {
+    "/api/discovery/control-ingresses": "GET",
     "/api/pairing/init": "POST",
     "/api/pairing/status": "GET",
     "/api/status": "GET",

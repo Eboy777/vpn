@@ -1,5 +1,6 @@
 import {ControlApiClient, ControlApiError} from "./src/api-client.js";
-import {BUILD_CONFIG, controlHostnames, validateBuildConfig} from "./src/config.js";
+import {BUILD_CONFIG, validateBuildConfig} from "./src/config.js";
+import {verifyDiscoveryDocument} from "./src/discovery.js";
 import {
   createProxyController,
   isCurrentProxyChallenge,
@@ -22,6 +23,7 @@ const proxyController = createProxyController();
 const authAttempts = new Set();
 let refreshPromise = null;
 let operationQueue = Promise.resolve();
+let discoveryPromise = null;
 
 chrome.runtime.onInstalled.addListener((details) => {
   const eventType = details.reason === "install" ? "installed" : "updated";
@@ -70,7 +72,7 @@ chrome.webRequest.onErrorOccurred.addListener(
   (details) => {
     authAttempts.delete(details.requestId);
     try {
-      if (controlHostnames(CONFIG).includes(new URL(details.url).hostname)) return;
+      if (api.controlHostnames().includes(new URL(details.url).hostname)) return;
     } catch {
       return;
     }
@@ -88,6 +90,7 @@ function enqueueOperation(operation) {
 }
 
 async function bootstrap() {
+  await refreshDiscoveryIfDue().catch(() => undefined);
   const state = await store.read();
   if (state.vpnEnabled && state.deviceToken) {
     if (state.nextStatusCheckAt <= Date.now()) {
@@ -153,6 +156,7 @@ async function view() {
 }
 
 async function startPairing() {
+  await refreshDiscoveryIfDue().catch(() => undefined);
   const state = await store.read();
   if (state.deviceToken) return;
   const result = await api.pairingInit(state.deviceId);
@@ -254,6 +258,7 @@ async function refreshStatus({force = false} = {}) {
 }
 
 async function performStatusRefresh({force}) {
+  await refreshDiscoveryIfDue().catch(() => undefined);
   const state = await store.read();
   const refreshStartedAt = Date.now();
   if (!state.deviceToken) return state;
@@ -360,6 +365,72 @@ async function performStatusRefresh({force}) {
       await enforceLocalSafetyDeadline();
     }
     throw error;
+  }
+}
+
+async function refreshDiscoveryIfDue() {
+  if (discoveryPromise) return discoveryPromise;
+  discoveryPromise = performDiscoveryRefresh().finally(() => {
+    discoveryPromise = null;
+  });
+  return discoveryPromise;
+}
+
+async function performDiscoveryRefresh() {
+  let state = await store.read();
+  let previousGeneratedAt = 0;
+  if (state.discoveryDocument) {
+    try {
+      const cached = await verifyDiscoveryDocument(
+        state.discoveryDocument,
+        CONFIG.discoveryPublicKeys,
+        {now: Date.now(), maxStaleSeconds: CONFIG.discoveryMaxStaleSeconds},
+      );
+      await applyControlUrls(cached.control_urls);
+      previousGeneratedAt = Date.parse(cached.generated_at);
+    } catch {
+      await applyControlUrls(CONFIG.controlUrls);
+      state = await store.update((current) => ({
+        ...current,
+        discoveryDocument: null,
+        discoveryRefreshAt: 0,
+      }));
+    }
+  }
+  if (state.discoveryRefreshAt > Date.now()) return;
+  const document = await api.discovery();
+  const verified = await verifyDiscoveryDocument(
+    document,
+    CONFIG.discoveryPublicKeys,
+    {
+      now: Date.now(),
+      previousGeneratedAt,
+      maxStaleSeconds: CONFIG.discoveryMaxStaleSeconds,
+    },
+  );
+  await applyControlUrls(verified.control_urls);
+  const refreshAt = Math.max(
+    Date.now() + 60_000,
+    Math.min(
+      Date.parse(verified.expires_at) - 60_000,
+      Date.now() + CONFIG.discoveryRefreshSeconds * 1000,
+    ),
+  );
+  await store.update((current) => ({
+    ...current,
+    discoveryDocument: verified,
+    discoveryRefreshAt: refreshAt,
+  }));
+}
+
+async function applyControlUrls(urls) {
+  api.setControlUrls(urls);
+  const state = await store.read();
+  if (!state.currentProxy) return;
+  const currentProxy = {...state.currentProxy, bypassList: api.controlHostnames()};
+  const next = await store.write({...state, currentProxy});
+  if (next.vpnEnabled) {
+    await proxyController.enable(currentProxy, currentProxy.bypassList);
   }
 }
 
@@ -514,7 +585,7 @@ async function scheduleStatusAlarm(delaySeconds) {
 }
 
 function validateStatusBypass(status) {
-  const expected = controlHostnames(CONFIG);
+  const expected = api.controlHostnames();
   const received = status?.vpn?.bypass_list;
   if (!Array.isArray(received) || JSON.stringify(received) !== JSON.stringify(expected)) {
     throw new Error("Backend вернул неверный список обхода control API");

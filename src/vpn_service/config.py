@@ -9,6 +9,8 @@ from typing import Annotated, Literal, Self
 from pydantic import AnyHttpUrl, BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_P256_ORDER = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
+
 
 class AppEnvironment(StrEnum):
     DEVELOPMENT = "development"
@@ -100,6 +102,9 @@ class Settings(BaseSettings):
         default_factory=lambda: ["127.0.0.1/32", "::1/128", "172.16.0.0/12"]
     )
     allowed_extension_origins_json: list[str] = Field(default_factory=list)
+    discovery_signing_private_key: SecretStr | None = None
+    discovery_signing_key_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{1,32}$")] = "v1"
+    discovery_document_ttl_seconds: Annotated[int, Field(ge=300, le=86_400)] = 3600
 
     telegram_delivery_mode: Literal["webhook", "polling"] = "webhook"
     telegram_bot_token: SecretStr | None = None
@@ -250,6 +255,14 @@ class Settings(BaseSettings):
             is None
         ):
             raise ValueError("ADMIN_PANEL_PASSWORD_HASH has an invalid format")
+        if self.discovery_signing_private_key is not None:
+            discovery_key = _decode_32_byte_key(
+                self.discovery_signing_private_key,
+                "DISCOVERY_SIGNING_PRIVATE_KEY",
+            )
+            discovery_scalar = int.from_bytes(discovery_key, "big")
+            if not 1 <= discovery_scalar < _P256_ORDER:
+                raise ValueError("DISCOVERY_SIGNING_PRIVATE_KEY is outside the P-256 range")
 
         expected_tariffs = {
             "vpn_15d": (14_900, 15, 2, "RUB", True),
@@ -378,6 +391,14 @@ class Settings(BaseSettings):
             raise ValueError("production requires a strong metrics scrape token")
         if not self.allowed_extension_origins_json:
             raise ValueError("production requires at least one allowed extension origin")
+        if self.discovery_signing_private_key is None:
+            raise ValueError("production requires DISCOVERY_SIGNING_PRIVATE_KEY")
+        discovery_key = _decode_32_byte_key(
+            self.discovery_signing_private_key,
+            "DISCOVERY_SIGNING_PRIVATE_KEY",
+        )
+        if int.from_bytes(discovery_key, "big") in {0, 1}:
+            raise ValueError("production discovery signing key is a development dummy key")
         telegram_required = {
             "TELEGRAM_BOT_TOKEN": self.telegram_bot_token,
             "TELEGRAM_BOT_USERNAME": self.telegram_bot_username,

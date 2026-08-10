@@ -105,6 +105,9 @@ def settings_factory() -> Callable[..., Settings]:
                     "admin_telegram_bot_token": ("production-admin-bot-token-material-0001"),
                     "admin_telegram_chat_ids_json": [1000000001],
                     "metrics_scrape_token": "production-metrics-token-material-0001",
+                    "discovery_signing_private_key": (
+                        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAI"
+                    ),
                 }
             )
         values.update(overrides)

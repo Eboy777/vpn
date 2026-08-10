@@ -133,6 +133,52 @@ async function renderNodes() {
   document.querySelector("#nodes-updated").textContent = time(data.generated_at);
 }
 
+async function ingressAction(item, action, changes = {}) {
+  const path = `ingresses/${item.id}/${action}`;
+  const body = action === "update"
+    ? {enabled: changes.enabled ?? item.enabled, priority: changes.priority ?? item.priority}
+    : {};
+  await api(path, {method: "POST", body: JSON.stringify(body)});
+  await renderIngresses();
+}
+
+async function renderIngresses() {
+  const data = await api("ingresses");
+  const body = document.querySelector("#ingresses"); body.replaceChildren();
+  for (const item of data.ingresses) {
+    const row = document.createElement("tr");
+    cell(row, item.url, "mono"); cell(row, item.priority);
+    const check = item.health;
+    const checkText = check ? `${check.success ? "доступен" : "ошибка"} / ${check.latency_ms} мс` : "нет проверки";
+    cell(row, `${item.enabled ? "active" : "disabled"}\n${checkText}`, check?.success ? "good" : check ? "critical" : "");
+    cell(row, item.bootstrap ? "встроенный" : "добавленный");
+    const actions = cell(row, "", "actions");
+    if (!item.bootstrap) {
+      const toggle = document.createElement("button"); toggle.type = "button";
+      toggle.textContent = item.enabled ? "Отключить" : "Включить";
+      toggle.addEventListener("click", () => ingressAction(item, "update", {enabled: !item.enabled}).catch((error) => showNotice(error.message, true)));
+      const priority = document.createElement("button"); priority.type = "button";
+      priority.textContent = "Приоритет";
+      priority.addEventListener("click", () => {
+        const value = Number(window.prompt("Приоритет 1–1000", item.priority));
+        if (!Number.isInteger(value) || value < 1 || value > 1000) return;
+        void ingressAction(item, "update", {priority: value}).catch((error) => showNotice(error.message, true));
+      });
+      const remove = document.createElement("button"); remove.type = "button";
+      remove.className = "danger"; remove.textContent = "Удалить";
+      remove.addEventListener("click", () => {
+        if (!window.confirm(`Удалить ${item.url}?`)) return;
+        void ingressAction(item, "delete").catch((error) => showNotice(error.message, true));
+      });
+      actions.append(toggle, priority, remove);
+    }
+    body.append(row);
+  }
+  document.querySelector("#ingresses-signing").textContent = data.signing_configured
+    ? "подпись настроена"
+    : "нужно настроить ключ подписи";
+}
+
 async function renderQuality() {
   const data = await api("quality");
   const duration = data.connection_time_ms;
@@ -196,7 +242,7 @@ async function renderEvents() {
 }
 
 async function refreshAll() {
-  try { await Promise.all([renderOverview(), renderQuality(), renderNodes(), renderUsers(), renderEvents()]); }
+  try { await Promise.all([renderOverview(), renderQuality(), renderIngresses(), renderNodes(), renderUsers(), renderEvents()]); }
   catch (error) { showNotice(error.message, true); }
 }
 
@@ -205,6 +251,12 @@ document.querySelector("#add-node").addEventListener("submit", async (event) => 
   event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget));
   values.capacity_users = Number(values.capacity_users); values.port = 443;
   try { await api("nodes", {method:"POST", body:JSON.stringify(values)}); event.currentTarget.reset(); showNotice("Нода добавлена в warming"); await refreshAll(); }
+  catch (error) { showNotice(error.message, true); }
+});
+document.querySelector("#add-ingress").addEventListener("submit", async (event) => {
+  event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget));
+  values.priority = Number(values.priority);
+  try { await api("ingresses", {method:"POST", body:JSON.stringify(values)}); event.currentTarget.reset(); showNotice("Адрес добавлен в подписанный список"); await renderIngresses(); }
   catch (error) { showNotice(error.message, true); }
 });
 document.querySelector("#add-canary").addEventListener("submit", async (event) => {

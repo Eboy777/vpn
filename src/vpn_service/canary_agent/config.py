@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import uuid
 from typing import Annotated
+from urllib.parse import urlsplit
 
 from pydantic import AnyHttpUrl, BaseModel, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -51,6 +52,8 @@ class CanaryAgentSettings(BaseSettings):
             raise ValueError("canary probe hosts must be unique")
         if len(self.control_urls) != len(set(self.control_urls)):
             raise ValueError("control API URLs must be unique")
+        if not 2 <= len(self.control_urls) <= 20:
+            raise ValueError("canary requires between 2 and 20 control API URLs")
         if (self.canary_admin_telegram_bot_token is None) != (
             not self.canary_admin_telegram_chat_ids_json
         ):
@@ -68,7 +71,29 @@ class CanaryAgentSettings(BaseSettings):
 
     @property
     def control_urls(self) -> list[str]:
-        return [
-            str(url).rstrip("/")
-            for url in [self.control_api_base_url, *self.control_api_fallback_urls_json]
-        ]
+        return normalize_control_urls(
+            [str(url) for url in [self.control_api_base_url, *self.control_api_fallback_urls_json]]
+        )
+
+
+def normalize_control_urls(values: list[str]) -> list[str]:
+    if not 2 <= len(values) <= 20:
+        raise ValueError("canary requires between 2 and 20 control API URLs")
+    normalized: list[str] = []
+    for value in values:
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+            or parsed.path not in {"", "/"}
+            or parsed.port not in {None, 443}
+        ):
+            raise ValueError("canary control API URLs must be plain HTTPS origins")
+        normalized.append(f"https://{parsed.hostname.rstrip('.').lower()}")
+    if len(normalized) != len(set(normalized)):
+        raise ValueError("control API URLs must be unique")
+    return normalized

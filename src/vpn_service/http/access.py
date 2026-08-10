@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Request
 
 from vpn_service.application.access import AccessResult, AccessService, AccessState, PublicNode
 from vpn_service.application.device_auth import AuthenticatedDevice, DeviceAuthenticator
+from vpn_service.application.discovery import DiscoveryService
 from vpn_service.domain.errors import ApplicationError
 from vpn_service.http.client_ip import client_ip
 from vpn_service.http.pairing import _require_json
@@ -55,7 +57,7 @@ async def status(request: Request) -> ContractJSONResponse:
             unavailable_reason=unavailable_reason,
             node=node,
             credentials=credentials,
-            bypass_list=_bypass_list(request),
+            bypass_list=await _bypass_list(request),
         ),
         server_time=result.server_time,
         next_check_seconds=60,
@@ -156,6 +158,11 @@ def _unavailable_reason(result: AccessResult) -> str | None:
     return "NO_ACTIVE_NODE"
 
 
-def _bypass_list(request: Request) -> list[str]:
-    hosts = [url.host for url in request.app.state.settings.public_control_urls_json]
-    return list(dict.fromkeys(host for host in hosts if host is not None))
+async def _bypass_list(request: Request) -> list[str]:
+    service: DiscoveryService | None = request.app.state.discovery_service
+    urls = (
+        await service.active_urls()
+        if service is not None
+        else [str(url).rstrip("/") for url in request.app.state.settings.public_control_urls_json]
+    )
+    return [urlsplit(url).hostname for url in urls if urlsplit(url).hostname is not None]

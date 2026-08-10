@@ -142,6 +142,7 @@ async def test_schema_has_named_constraints_and_indexes(engine: AsyncEngine) -> 
         "canaries",
         "canary_auth_tokens",
         "canary_runs",
+        "control_ingresses",
         "devices",
         "extension_installations",
         "extension_lifecycle_events",

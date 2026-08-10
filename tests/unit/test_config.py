@@ -77,6 +77,7 @@ def test_production_profile_accepts_only_approved_values(
         ({"admin_panel_enabled": False}, "password-protected admin panel"),
         ({"admin_telegram_chat_ids_json": []}, "separate admin Telegram bot"),
         ({"metrics_scrape_token": None}, "strong metrics scrape token"),
+        ({"discovery_signing_private_key": None}, "DISCOVERY_SIGNING_PRIVATE_KEY"),
         ({"payments_production_enabled": True}, "production payments remain disabled"),
         ({"robokassa_is_test": False}, "must remain in test mode"),
         (

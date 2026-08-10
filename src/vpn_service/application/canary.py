@@ -10,6 +10,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from vpn_service.application.admin_alerts import enqueue_admin_alert
+from vpn_service.application.discovery import DiscoveryService
 from vpn_service.config import Settings
 from vpn_service.domain.enums import AuthTokenStatus, NodeStatus
 from vpn_service.domain.errors import ApplicationError
@@ -219,6 +220,24 @@ class CanaryReportService:
                         "recovery_ready": node.recovery_ready,
                     }
                 )
+            previous_runs = list(
+                (
+                    await session.scalars(
+                        select(CanaryRun)
+                        .where(CanaryRun.canary_id == identity.canary_id)
+                        .order_by(CanaryRun.checked_at.desc())
+                        .limit(self._settings.node_block_failure_threshold)
+                    )
+                ).all()
+            )
+            await self._process_ingress_alerts(
+                session,
+                canary_id=identity.canary_id,
+                current=payload.ingresses,
+                previous_runs=previous_runs,
+                run_id=payload.run_id,
+                now=now,
+            )
             canary = await session.get(Canary, identity.canary_id)
             assert canary is not None
             canary.last_report_at = now
@@ -226,6 +245,10 @@ class CanaryReportService:
                 "processed": True,
                 "run_id": str(payload.run_id),
                 "outcomes": outcomes,
+                "ingresses": [item.model_dump(mode="json") for item in payload.ingresses],
+                "control_urls": await DiscoveryService(
+                    self._sessions, self._settings
+                ).active_urls_in_session(session),
             }
             session.add(
                 CanaryRun(
@@ -256,6 +279,61 @@ class CanaryReportService:
                         now=now,
                     )
         return response
+
+    async def _process_ingress_alerts(
+        self,
+        session: AsyncSession,
+        *,
+        canary_id: uuid.UUID,
+        current: list,
+        previous_runs: list[CanaryRun],
+        run_id: uuid.UUID,
+        now: datetime,
+    ) -> None:
+        threshold = self._settings.node_block_failure_threshold
+        for result in current:
+            previous = [
+                item
+                for run in previous_runs
+                for item in run.response_json.get("ingresses", [])
+                if item.get("url") == result.url
+            ]
+            consecutive_failure = not result.success and all(
+                not item.get("success") for item in previous[: threshold - 1]
+            )
+            if consecutive_failure and len(previous) >= threshold - 1:
+                alert_bucket = (
+                    int(now.timestamp()) // self._settings.operations_alert_cooldown_seconds
+                )
+                await enqueue_admin_alert(
+                    session,
+                    event_name="control_ingress_failed",
+                    idempotency_key=(
+                        "admin-alert:control-ingress-failed:"
+                        f"{hashlib.sha256(result.url.encode()).hexdigest()}:"
+                        f"{alert_bucket}"
+                    ),
+                    aggregate_id=canary_id,
+                    data={
+                        "url": result.url,
+                        "error_code": result.error_code,
+                        "attempts": threshold,
+                    },
+                    now=now,
+                )
+            recovered = result.success and len(previous) >= threshold and all(
+                not item.get("success") for item in previous[:threshold]
+            )
+            if recovered:
+                url_hash = hashlib.sha256(result.url.encode()).hexdigest()
+                await enqueue_admin_alert(
+                    session,
+                    event_name="control_ingress_recovered",
+                    idempotency_key=f"admin-alert:control-ingress-recovered:{url_hash}:{run_id}",
+                    aggregate_id=canary_id,
+                    data={"url": result.url},
+                    now=now,
+                )
 
 
 def _request_hash(payload: CanaryRunRequest) -> str:

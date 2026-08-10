@@ -88,3 +88,26 @@ def test_admin_alert_renderer_uses_only_allowlisted_safe_fields() -> None:
     assert "disk_high" in rendered
     assert "91.2%" in rendered
     assert "must-not-appear" not in rendered
+
+
+def test_admin_alert_renderer_supports_control_ingress_failures() -> None:
+    failed = _render_alert(
+        {
+            "event": "control_ingress_failed",
+            "data": {
+                "url": "https://api-a.example",
+                "error_code": "TIMEOUT",
+                "attempts": 3,
+            },
+        }
+    )
+    recovered = _render_alert(
+        {
+            "event": "control_ingress_recovered",
+            "data": {"url": "https://api-a.example"},
+        }
+    )
+
+    assert "недоступен из России" in failed
+    assert "TIMEOUT" in failed
+    assert "снова доступен" in recovered
