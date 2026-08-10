@@ -9,6 +9,8 @@ export function initialState(deviceId = crypto.randomUUID()) {
     vpnEnabled: false,
     connectedAt: null,
     vpnSessionId: null,
+    connectionAttemptStartedAt: null,
+    hadSuccessfulConnection: false,
     lastTelemetryErrorAt: 0,
     status: null,
     currentProxy: null,
@@ -33,6 +35,8 @@ export function createStateStore(storageArea = chrome.storage.local) {
         controlRateLimitedUntil: Number(stored.controlRateLimitedUntil) || 0,
         controlUnavailableSince: Number(stored.controlUnavailableSince) || null,
         nextStatusCheckAt: Number(stored.nextStatusCheckAt) || 0,
+        connectionAttemptStartedAt: Number(stored.connectionAttemptStartedAt) || null,
+        hadSuccessfulConnection: Boolean(stored.hadSuccessfulConnection),
       };
     },
 

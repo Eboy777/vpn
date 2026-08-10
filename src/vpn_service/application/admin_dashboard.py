@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -203,6 +204,161 @@ class AdminDashboardService:
                 )
             return {"users": result, "generated_at": _format(now)}
 
+    async def quality(self) -> dict[str, Any]:
+        async with self._sessions() as session:
+            now = await _database_now(session)
+            since = now - timedelta(hours=24)
+            event_counts = dict(
+                (
+                    await session.execute(
+                        select(UserActivityEvent.event_type, func.count(UserActivityEvent.event_id))
+                        .where(UserActivityEvent.received_at >= since)
+                        .group_by(UserActivityEvent.event_type)
+                    )
+                ).all()
+            )
+            durations = [
+                int(value)
+                for value in (
+                    await session.scalars(
+                        select(VpnSession.connection_duration_ms).where(
+                            VpnSession.started_at >= since,
+                            VpnSession.connection_duration_ms.is_not(None),
+                        )
+                    )
+                ).all()
+                if value is not None
+            ]
+            error_rows = (
+                await session.execute(
+                    select(
+                        UserActivityEvent.extension_version,
+                        UserActivityEvent.browser_name,
+                        UserActivityEvent.browser_version,
+                        UserActivityEvent.platform,
+                        UserActivityEvent.error_code,
+                        func.count(UserActivityEvent.event_id),
+                    )
+                    .where(
+                        UserActivityEvent.event_type == "connection_error",
+                        UserActivityEvent.received_at >= since,
+                    )
+                    .group_by(
+                        UserActivityEvent.extension_version,
+                        UserActivityEvent.browser_name,
+                        UserActivityEvent.browser_version,
+                        UserActivityEvent.platform,
+                        UserActivityEvent.error_code,
+                    )
+                    .order_by(func.count(UserActivityEvent.event_id).desc())
+                    .limit(50)
+                )
+            ).all()
+            shared_ip_rows = (
+                await session.execute(
+                    select(
+                        VpnSession.source_ip,
+                        func.count(func.distinct(VpnSession.user_id)),
+                        func.count(VpnSession.id),
+                    )
+                    .where(
+                        VpnSession.last_seen_at >= now - timedelta(minutes=3),
+                        VpnSession.status == "active",
+                    )
+                    .group_by(VpnSession.source_ip)
+                    .order_by(func.count(func.distinct(VpnSession.user_id)).desc())
+                    .limit(25)
+                )
+            ).all()
+            unexpected_users = int(
+                await session.scalar(
+                    select(func.count(func.distinct(VpnSession.user_id))).where(
+                        VpnSession.started_at >= since,
+                        VpnSession.status == "active",
+                        VpnSession.last_seen_at < now - timedelta(minutes=3),
+                    )
+                )
+                or 0
+            )
+            session_users = int(
+                await session.scalar(
+                    select(func.count(func.distinct(VpnSession.user_id))).where(
+                        VpnSession.started_at >= since
+                    )
+                )
+                or 0
+            )
+            attempts = int(event_counts.get("connection_attempt", 0))
+            attempted_sessions = select(UserActivityEvent.session_id).where(
+                UserActivityEvent.event_type == "connection_attempt",
+                UserActivityEvent.received_at >= since,
+                UserActivityEvent.session_id.is_not(None),
+            )
+            successes = int(
+                await session.scalar(
+                    select(func.count(func.distinct(UserActivityEvent.session_id))).where(
+                        UserActivityEvent.event_type == "vpn_started",
+                        UserActivityEvent.received_at >= since,
+                        UserActivityEvent.session_id.in_(attempted_sessions),
+                    )
+                )
+                or 0
+            )
+            return {
+                "window_hours": 24,
+                "connection_attempts": attempts,
+                "successful_connections": successes,
+                "connection_success_percent": round(successes * 100 / attempts, 2)
+                if attempts
+                else None,
+                "connection_time_ms": {
+                    "average": round(sum(durations) / len(durations), 1) if durations else None,
+                    "p95": _percentile(durations, 0.95),
+                    "p99": _percentile(durations, 0.99),
+                },
+                "failovers": int(event_counts.get("node_failover", 0)),
+                "reconnects": int(event_counts.get("reconnect", 0)),
+                "unexpected_disconnect_users": unexpected_users,
+                "unexpected_disconnect_percent": round(
+                    unexpected_users * 100 / session_users, 2
+                )
+                if session_users
+                else None,
+                "payment_funnel": {
+                    "tariff_views": int(event_counts.get("tariff_viewed", 0)),
+                    "payment_links_created": int(
+                        await session.scalar(
+                            select(func.count(Payment.id)).where(Payment.created_at >= since)
+                        )
+                        or 0
+                    ),
+                    "payments_completed": int(
+                        await session.scalar(
+                            select(func.count(Payment.id)).where(
+                                Payment.created_at >= since,
+                                Payment.status == "paid",
+                            )
+                        )
+                        or 0
+                    ),
+                },
+                "errors": [
+                    {
+                        "extension_version": row[0],
+                        "browser": f"{row[1]} {row[2]}",
+                        "platform": row[3],
+                        "error_code": row[4],
+                        "count": int(row[5]),
+                    }
+                    for row in error_rows
+                ],
+                "shared_ips": [
+                    {"ip": row[0], "users": int(row[1]), "sessions": int(row[2])}
+                    for row in shared_ip_rows
+                ],
+                "generated_at": _format(now),
+            }
+
     async def nodes(self) -> dict[str, Any]:
         async with self._sessions() as session:
             now = await _database_now(session)
@@ -223,6 +379,18 @@ class AdminDashboardService:
                     await session.execute(
                         select(User.assigned_node_id, func.count(User.id))
                         .where(User.assigned_node_id.is_not(None))
+                        .group_by(User.assigned_node_id)
+                    )
+                ).all()
+            )
+            recent_growth = dict(
+                (
+                    await session.execute(
+                        select(User.assigned_node_id, func.count(User.id))
+                        .where(
+                            User.assigned_node_id.is_not(None),
+                            User.created_at >= now - timedelta(days=7),
+                        )
                         .group_by(User.assigned_node_id)
                     )
                 ).all()
@@ -263,6 +431,10 @@ class AdminDashboardService:
                     for item in target_results
                     if item.get("success") and item.get("latency_ms") is not None
                 ]
+                assigned_users = int(assigned.get(node.id, 0))
+                utilization = assigned_users / node.capacity_users
+                daily_growth = int(recent_growth.get(node.id, 0)) / 7
+                free_capacity = max(0, node.capacity_users - assigned_users)
                 result.append(
                     {
                         "id": str(node.id),
@@ -273,9 +445,20 @@ class AdminDashboardService:
                         "provider": node.provider,
                         "status": node.status,
                         "capacity_users": node.capacity_users,
-                        "assigned_users": int(assigned.get(node.id, 0)),
-                        "free_capacity": max(
-                            0, node.capacity_users - int(assigned.get(node.id, 0))
+                        "assigned_users": assigned_users,
+                        "free_capacity": free_capacity,
+                        "capacity_percent": round(utilization * 100, 1),
+                        "capacity_alert": (
+                            "critical"
+                            if utilization >= 0.8
+                            else "warning"
+                            if utilization >= 0.7
+                            else None
+                        ),
+                        "estimated_capacity_exhaustion_hours": (
+                            round(free_capacity / daily_growth * 24, 1)
+                            if daily_growth > 0
+                            else None
                         ),
                         "last_sync_at": _optional_time(node.last_sync_at),
                         "snapshot_valid_until": _optional_time(node.applied_snapshot_valid_until),
@@ -360,6 +543,14 @@ async def _database_now(session: AsyncSession) -> datetime:
 
 def _format(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _percentile(values: list[int], quantile: float) -> int | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    index = max(0, min(len(ordered) - 1, math.ceil(quantile * len(ordered)) - 1))
+    return ordered[index]
 
 
 def _optional_time(value: datetime | None) -> str | None:

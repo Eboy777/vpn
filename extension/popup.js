@@ -54,6 +54,7 @@ async function act(action, actionElement = null) {
     case "tariffs":
       currentScreen = "tariffs";
       render();
+      void send("TRACK_EVENT", {eventType: "tariff_viewed"}).catch(() => undefined);
       return;
     case "settings":
     case "help":

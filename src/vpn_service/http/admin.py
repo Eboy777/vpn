@@ -113,6 +113,12 @@ async def admin_nodes(request: Request):
     return await _dashboard(request).nodes()
 
 
+@router.get("/api/quality")
+async def admin_quality(request: Request):
+    _require_admin(request)
+    return await _dashboard(request).quality()
+
+
 @router.get("/api/events")
 async def admin_events(request: Request, limit: int = 100):
     _require_admin(request)

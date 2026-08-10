@@ -130,19 +130,40 @@ class ExtensionLifecycleRequest(StrictRequest):
     installation_id: uuid.UUID
     event_type: Literal["installed", "launched", "updated"]
     extension_version: Annotated[str, Field(pattern=r"^[0-9A-Za-z][0-9A-Za-z._-]{0,31}$")]
+    browser_name: Annotated[str, Field(pattern=r"^[0-9A-Za-z._-]{1,32}$")] = "unknown"
+    browser_version: Annotated[str, Field(pattern=r"^[0-9A-Za-z._-]{1,32}$")] = "unknown"
+    platform: Annotated[str, Field(pattern=r"^[0-9A-Za-z._-]{1,32}$")] = "unknown"
 
 
 class DeviceTelemetryRequest(StrictRequest):
     event_id: uuid.UUID
-    event_type: Literal["vpn_started", "vpn_heartbeat", "vpn_stopped", "connection_error"]
-    session_id: uuid.UUID
+    event_type: Literal[
+        "connection_attempt",
+        "vpn_started",
+        "vpn_heartbeat",
+        "vpn_stopped",
+        "connection_error",
+        "node_failover",
+        "reconnect",
+        "tariff_viewed",
+    ]
+    session_id: uuid.UUID | None = None
     extension_version: Annotated[str, Field(pattern=r"^[0-9A-Za-z][0-9A-Za-z._-]{0,31}$")]
+    browser_name: Annotated[str, Field(pattern=r"^[0-9A-Za-z._-]{1,32}$")] = "unknown"
+    browser_version: Annotated[str, Field(pattern=r"^[0-9A-Za-z._-]{1,32}$")] = "unknown"
+    platform: Annotated[str, Field(pattern=r"^[0-9A-Za-z._-]{1,32}$")] = "unknown"
     error_code: Annotated[str, Field(pattern=r"^[A-Z0-9_]{1,64}$")] | None = None
+    duration_ms: Annotated[int, Field(strict=True, ge=0, le=300_000)] | None = None
 
     @model_validator(mode="after")
     def error_code_matches_event(self) -> DeviceTelemetryRequest:
         if (self.event_type == "connection_error") != (self.error_code is not None):
             raise ValueError("error_code is required only for connection_error")
+        if self.event_type != "tariff_viewed" and self.session_id is None:
+            raise ValueError("session_id is required for VPN events")
+        timed_events = {"vpn_started", "node_failover", "reconnect", "connection_error"}
+        if self.duration_ms is not None and self.event_type not in timed_events:
+            raise ValueError("duration_ms is allowed only for timed connection events")
         return self
 
 

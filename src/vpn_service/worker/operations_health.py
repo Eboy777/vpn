@@ -9,7 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from vpn_service.application.admin_alerts import enqueue_admin_alert
 from vpn_service.config import Settings
 from vpn_service.domain.enums import NodeStatus
-from vpn_service.persistence.models import Node, NodeRuntimeMetric
+from vpn_service.persistence.models import Node, NodeRuntimeMetric, NodeUserTraffic, User
+
+_WARNING_RATIO = 0.70
+_CRITICAL_RATIO = 0.80
+_NODE_CONNECTION_LIMIT = 5_000
 
 
 class OperationsHealthWorker:
@@ -62,10 +66,37 @@ class OperationsHealthWorker:
                     )
                 ).all()
             }
+            assigned = dict(
+                (
+                    await session.execute(
+                        select(User.assigned_node_id, func.count(User.id))
+                        .where(User.assigned_node_id.in_([node.id for node in nodes]))
+                        .group_by(User.assigned_node_id)
+                    )
+                ).all()
+            )
+            connections = dict(
+                (
+                    await session.execute(
+                        select(
+                            NodeUserTraffic.node_id,
+                            func.sum(NodeUserTraffic.current_connections),
+                        )
+                        .where(NodeUserTraffic.node_id.in_([node.id for node in nodes]))
+                        .group_by(NodeUserTraffic.node_id)
+                    )
+                ).all()
+            )
             bucket = int(now.timestamp()) // self._settings.operations_alert_cooldown_seconds
             alert_count = 0
             for node in nodes:
-                for problem, value in self._problems(now, runtimes.get(node.id)):
+                for problem, value in self._problems(
+                    now,
+                    runtimes.get(node.id),
+                    assigned_users=int(assigned.get(node.id, 0)),
+                    capacity_users=node.capacity_users,
+                    current_connections=int(connections.get(node.id, 0) or 0),
+                ):
                     await enqueue_admin_alert(
                         session,
                         event_name="node_health_warning",
@@ -86,6 +117,10 @@ class OperationsHealthWorker:
         self,
         now: datetime,
         metric: NodeRuntimeMetric | None,
+        *,
+        assigned_users: int = 0,
+        capacity_users: int = 1,
+        current_connections: int = 0,
     ) -> list[tuple[str, str]]:
         if metric is None:
             return [("telemetry_missing", "no runtime report")]
@@ -97,23 +132,47 @@ class OperationsHealthWorker:
             problems.append(("gost_down", "down"))
         if not metric.sync_agent_up:
             problems.append(("sync_agent_down", "down"))
-        thresholds = (
-            ("cpu_high", metric.cpu_percent, self._settings.operations_cpu_warning_percent),
-            (
-                "memory_high",
-                metric.memory_percent,
-                self._settings.operations_memory_warning_percent,
-            ),
-            ("disk_high", metric.disk_percent, self._settings.operations_disk_warning_percent),
+        resources = (
+            ("cpu", metric.cpu_percent),
+            ("memory", metric.memory_percent),
+            ("disk", metric.disk_percent),
         )
-        for name, value, threshold in thresholds:
-            if value >= threshold:
-                problems.append((name, f"{value:.1f}%"))
+        for name, value in resources:
+            severity = _severity(value / 100)
+            if severity is not None:
+                problems.append((f"{name}_{severity}", f"{value:.1f}%"))
+        capacity_ratio = assigned_users / max(1, capacity_users)
+        capacity_severity = _severity(capacity_ratio)
+        if capacity_severity is not None:
+            problems.append(
+                (
+                    f"capacity_{capacity_severity}",
+                    f"{assigned_users}/{capacity_users} ({capacity_ratio * 100:.1f}%)",
+                )
+            )
+        connection_ratio = current_connections / _NODE_CONNECTION_LIMIT
+        connection_severity = _severity(connection_ratio)
+        if connection_severity is not None:
+            problems.append(
+                (
+                    f"connections_{connection_severity}",
+                    f"{current_connections}/{_NODE_CONNECTION_LIMIT} "
+                    f"({connection_ratio * 100:.1f}%)",
+                )
+            )
         if metric.tls_expires_at is not None:
             remaining = metric.tls_expires_at.astimezone(UTC) - now
             if remaining <= timedelta(days=self._settings.operations_tls_warning_days):
                 problems.append(("tls_expiring", f"{max(0, remaining.days)}d"))
         return problems
+
+
+def _severity(ratio: float) -> str | None:
+    if ratio >= _CRITICAL_RATIO:
+        return "critical"
+    if ratio >= _WARNING_RATIO:
+        return "warning"
+    return None
 
 
 async def _transaction_now(session: AsyncSession) -> datetime:

@@ -42,3 +42,17 @@ def test_sensitive_columns_are_hashes_or_ciphertext() -> None:
     assert "users.proxy_password_ciphertext" in columns
     assert "node_auth_tokens.token_hash" in columns
     assert "canary_auth_tokens.token_hash" in columns
+
+
+def test_quality_analytics_columns_are_present() -> None:
+    columns = {
+        f"{table.name}.{column.name}"
+        for table in Base.metadata.tables.values()
+        for column in table.columns
+    }
+
+    assert "vpn_sessions.connection_duration_ms" in columns
+    assert "vpn_sessions.failover_count" in columns
+    assert "vpn_sessions.reconnect_count" in columns
+    assert "user_activity_events.browser_version" in columns
+    assert "user_activity_events.platform" in columns

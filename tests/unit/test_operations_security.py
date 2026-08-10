@@ -35,12 +35,14 @@ async def test_admin_panel_requires_password_and_serves_no_store_assets(
     client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
     try:
         missing = await client.get("/admin")
+        quality_missing = await client.get("/admin/api/quality")
         wrong = await client.get("/admin", auth=("admin", "wrong-admin-password"))
         accepted = await client.get("/admin", auth=("admin", password))
     finally:
         await client.aclose()
 
     assert missing.status_code == 401
+    assert quality_missing.status_code == 401
     assert wrong.status_code == 401
     assert accepted.status_code == 200
     assert accepted.headers["cache-control"] == "no-store"

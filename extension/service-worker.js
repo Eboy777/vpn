@@ -135,6 +135,10 @@ async function handleMessage(message) {
       return view();
     case "GET_NODES":
       return getNodes();
+    case "TRACK_EVENT":
+      if (message.eventType !== "tariff_viewed") throw new Error("Некорректное событие");
+      await reportVpnEvent("tariff_viewed");
+      return null;
     case "LOGOUT":
       await logout();
       return view();
@@ -206,6 +210,8 @@ async function setVpn(enabled) {
       connectedAt: null,
       currentProxy: null,
       vpnSessionId: null,
+      connectionAttemptStartedAt: null,
+      hadSuccessfulConnection: false,
       controlUnavailableSince: null,
       nextStatusCheckAt: 0,
       lastError: null,
@@ -214,15 +220,29 @@ async function setVpn(enabled) {
     return;
   }
 
-  await store.write({
+  const attempt = await store.write({
     ...state,
     vpnEnabled: true,
     vpnSessionId: state.vpnSessionId || crypto.randomUUID(),
+    connectionAttemptStartedAt: Date.now(),
     controlUnavailableSince: null,
     nextStatusCheckAt: 0,
     lastError: null,
   });
-  await refreshStatus({force: true});
+  await reportVpnEvent("connection_attempt", attempt).catch(() => undefined);
+  try {
+    await refreshStatus({force: true});
+  } catch (error) {
+    const failed = await store.read();
+    const durationMs = Math.max(0, Date.now() - Number(failed.connectionAttemptStartedAt || Date.now()));
+    await reportVpnEvent(
+      "connection_error",
+      failed,
+      telemetryErrorCode(error),
+      durationMs,
+    ).catch(() => undefined);
+    throw error;
+  }
 }
 
 async function refreshStatus({force = false} = {}) {
@@ -235,6 +255,7 @@ async function refreshStatus({force = false} = {}) {
 
 async function performStatusRefresh({force}) {
   const state = await store.read();
+  const refreshStartedAt = Date.now();
   if (!state.deviceToken) return state;
   if (!force && state.nextStatusCheckAt > Date.now()) {
     await ensureStatusAlarm(state);
@@ -252,12 +273,22 @@ async function performStatusRefresh({force}) {
       lastError: null,
     };
     const newProxy = proxyFromStatus(status);
+    const nodeChanged = Boolean(
+      state.vpnEnabled
+      && state.currentProxy?.nodeId
+      && newProxy?.nodeId
+      && state.currentProxy.nodeId !== newProxy.nodeId,
+    );
+    const reconnecting = Boolean(
+      state.vpnEnabled && state.hadSuccessfulConnection && !state.currentProxy && newProxy,
+    );
     if (state.vpnEnabled && newProxy) {
       next = {
         ...next,
         vpnSessionId: state.vpnSessionId || crypto.randomUUID(),
         currentProxy: newProxy,
         connectedAt: state.connectedAt ?? Date.now(),
+        hadSuccessfulConnection: true,
       };
       try {
         // Persist credentials first so onAuthRequired can answer immediately after settings flip.
@@ -280,6 +311,7 @@ async function performStatusRefresh({force}) {
         currentProxy: null,
         connectedAt: null,
         vpnSessionId: null,
+        connectionAttemptStartedAt: null,
       };
       if (finalAccessState) await chrome.alarms.clear(STATUS_ALARM);
     }
@@ -293,7 +325,23 @@ async function performStatusRefresh({force}) {
     if (saved.vpnEnabled) await scheduleStatusAlarm(nextCheckSeconds);
     if (saved.vpnEnabled && newProxy) {
       const eventType = state.connectedAt === null ? "vpn_started" : "vpn_heartbeat";
-      await reportVpnEvent(eventType, saved).catch(() => undefined);
+      const durationMs = Math.max(
+        0,
+        Date.now() - Number(state.connectionAttemptStartedAt || refreshStartedAt),
+      );
+      if (nodeChanged) {
+        await reportVpnEvent("node_failover", saved, null, durationMs).catch(() => undefined);
+      } else if (reconnecting) {
+        await reportVpnEvent("reconnect", saved, null, durationMs).catch(() => undefined);
+      }
+      await reportVpnEvent(eventType, saved, null, eventType === "vpn_started" ? durationMs : null)
+        .catch(() => undefined);
+      if (saved.connectionAttemptStartedAt !== null) {
+        saved = await store.update((current) => ({
+          ...current,
+          connectionAttemptStartedAt: null,
+        }));
+      }
     }
     await updateBadge(saved);
     return saved;
@@ -338,6 +386,7 @@ async function enforceLocalSafetyDeadline() {
     vpnEnabled: false,
     currentProxy: null,
     vpnSessionId: null,
+    connectionAttemptStartedAt: null,
     connectedAt: null,
     nextStatusCheckAt: 0,
   });
@@ -346,24 +395,57 @@ async function enforceLocalSafetyDeadline() {
 
 async function reportLifecycle(eventType) {
   const state = await store.read();
+  const context = await clientTelemetryContext();
   return api.lifecycle({
     event_id: crypto.randomUUID(),
     installation_id: state.deviceId,
     event_type: eventType,
     extension_version: chrome.runtime.getManifest().version,
+    ...context,
   });
 }
 
-async function reportVpnEvent(eventType, providedState = null, errorCode = null) {
+async function reportVpnEvent(
+  eventType,
+  providedState = null,
+  errorCode = null,
+  durationMs = null,
+) {
   const state = providedState || await store.read();
-  if (!state.deviceToken || !state.vpnSessionId) return;
+  if (!state.deviceToken || (eventType !== "tariff_viewed" && !state.vpnSessionId)) return;
+  const context = await clientTelemetryContext();
   await api.telemetry(state.deviceToken, {
     event_id: crypto.randomUUID(),
     event_type: eventType,
-    session_id: state.vpnSessionId,
+    ...(state.vpnSessionId ? {session_id: state.vpnSessionId} : {}),
     extension_version: chrome.runtime.getManifest().version,
+    ...context,
     ...(errorCode ? {error_code: errorCode} : {}),
+    ...(durationMs === null ? {} : {duration_ms: Math.min(300_000, Math.round(durationMs))}),
   });
+}
+
+async function clientTelemetryContext() {
+  const platformInfo = await chrome.runtime.getPlatformInfo().catch(() => ({os: "unknown"}));
+  const brands = globalThis.navigator?.userAgentData?.brands || [];
+  const preferred = brands.find((item) => !String(item.brand).includes("Not")) || null;
+  const userAgent = String(globalThis.navigator?.userAgent || "");
+  const fallback = userAgent.match(/(?:Chrome|Chromium)\/([0-9.]+)/);
+  return {
+    browser_name: normalizeTelemetryLabel(preferred?.brand || "chromium"),
+    browser_version: normalizeTelemetryLabel(preferred?.version || fallback?.[1] || "unknown"),
+    platform: normalizeTelemetryLabel(platformInfo.os || "unknown"),
+  };
+}
+
+function normalizeTelemetryLabel(value) {
+  const normalized = String(value).replace(/[^0-9A-Za-z._-]/g, "_").slice(0, 32);
+  return normalized || "unknown";
+}
+
+function telemetryErrorCode(error) {
+  const code = String(error?.code || "CONNECTION_FAILED").toUpperCase();
+  return code.replace(/[^A-Z0-9_]/g, "_").slice(0, 64) || "CONNECTION_FAILED";
 }
 
 async function reportConnectionError() {

@@ -8,6 +8,7 @@ main { width:min(1560px,calc(100% - 34px)); margin:25px auto 70px; }
 section { margin:18px 0; padding:20px; background:rgba(24,26,30,.94); border:1px solid #3a3d43; box-shadow:0 18px 50px rgba(0,0,0,.25); }
 h1,h2 { margin:0 0 15px; font-weight:620; letter-spacing:-.02em; }
 h1 { font-size:24px; } h2 { font-size:20px; }
+h3 { margin:22px 0 10px; font-size:15px; color:#c8ccd3; }
 button,input { font:inherit; }
 button { border:1px solid #676b73; border-radius:8px; padding:8px 12px; background:#272a30; color:#fff; cursor:pointer; }
 button:hover { background:#363a42; } button.danger { border-color:#9b3b48; color:#ffb2bb; } button.good { border-color:#2b8c58; color:#8cf0b8; }
@@ -24,6 +25,8 @@ tr:last-child td { border-bottom:0; }
 .status.active,.status.healthy { color:#83efb2; background:#173426; }
 .status.blocked,.status.failed,.status.error { color:#ff98a5; background:#3d2025; }
 .status.warming,.status.inconclusive { color:#ffd67a; background:#3e341d; }
+td.warning { color:#ffd67a; background:#322b19; }
+td.critical { color:#ff98a5; background:#351b20; }
 .muted { color:#969ca7; font-size:12px; }
 .mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
 .actions { display:flex; flex-wrap:wrap; gap:5px; min-width:260px; }

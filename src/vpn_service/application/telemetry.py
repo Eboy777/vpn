@@ -54,6 +54,9 @@ class TelemetryService:
                         installation_id=payload.installation_id,
                         event_type=payload.event_type,
                         extension_version=payload.extension_version,
+                        browser_name=payload.browser_name,
+                        browser_version=payload.browser_version,
+                        platform=payload.platform,
                         source_ip=source_ip,
                         received_at=now,
                     )
@@ -70,6 +73,9 @@ class TelemetryService:
                 .values(
                     installation_id=payload.installation_id,
                     extension_version=payload.extension_version,
+                    browser_name=payload.browser_name,
+                    browser_version=payload.browser_version,
+                    platform=payload.platform,
                     launch_count=launch_increment,
                     first_seen_at=now,
                     last_seen_at=now,
@@ -78,6 +84,9 @@ class TelemetryService:
                     index_elements=[ExtensionInstallation.installation_id],
                     set_={
                         "extension_version": payload.extension_version,
+                        "browser_name": payload.browser_name,
+                        "browser_version": payload.browser_version,
+                        "platform": payload.platform,
                         "last_seen_at": now,
                         "launch_count": (ExtensionInstallation.launch_count + launch_increment),
                     },
@@ -115,6 +124,11 @@ class TelemetryService:
                         session_id=payload.session_id,
                         event_type=payload.event_type,
                         error_code=payload.error_code,
+                        extension_version=payload.extension_version,
+                        browser_name=payload.browser_name,
+                        browser_version=payload.browser_version,
+                        platform=payload.platform,
+                        duration_ms=payload.duration_ms,
                         source_ip=source_ip,
                         received_at=now,
                     )
@@ -124,6 +138,11 @@ class TelemetryService:
             ).scalar_one_or_none()
             if inserted is None:
                 return False
+
+            if payload.event_type == "tariff_viewed":
+                return True
+
+            assert payload.session_id is not None
 
             vpn_session = await session.get(VpnSession, payload.session_id)
             if vpn_session is not None and (
@@ -138,8 +157,14 @@ class TelemetryService:
                     node_id=user.assigned_node_id,
                     source_ip=source_ip,
                     extension_version=payload.extension_version,
+                    browser_name=payload.browser_name,
+                    browser_version=payload.browser_version,
+                    platform=payload.platform,
                     status="active",
                     connection_errors=0,
+                    connection_duration_ms=payload.duration_ms,
+                    failover_count=0,
+                    reconnect_count=0,
                     started_at=now,
                     last_seen_at=now,
                 )
@@ -148,17 +173,28 @@ class TelemetryService:
                 vpn_session.node_id = user.assigned_node_id
                 vpn_session.source_ip = source_ip
                 vpn_session.extension_version = payload.extension_version
+                vpn_session.browser_name = payload.browser_name
+                vpn_session.browser_version = payload.browser_version
+                vpn_session.platform = payload.platform
                 vpn_session.last_seen_at = now
 
             if payload.event_type == "connection_error":
                 vpn_session.connection_errors += 1
                 vpn_session.status = "error"
+            elif payload.event_type == "node_failover":
+                vpn_session.failover_count += 1
+                vpn_session.status = "active"
+            elif payload.event_type == "reconnect":
+                vpn_session.reconnect_count += 1
+                vpn_session.status = "active"
             elif payload.event_type == "vpn_stopped":
                 vpn_session.status = "ended"
                 vpn_session.ended_at = now
             else:
                 vpn_session.status = "active"
                 vpn_session.ended_at = None
+            if payload.event_type == "vpn_started" and payload.duration_ms is not None:
+                vpn_session.connection_duration_ms = payload.duration_ms
             return True
 
     async def _enforce_rate_limit(

@@ -84,6 +84,50 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
       "datasource": {"type": "loki", "uid": "loki"},
       "targets": [{"expr": "{source=~\"journald|.+\"}", "refId": "A"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Успешность и время подключения",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "virgo_connection_success_ratio_24h * 100", "legendFormat": "Успешно, %", "refId": "A"},
+        {"expr": "virgo_connection_duration_ms{quantile=\"p95\"}", "legendFormat": "p95, мс", "refId": "B"},
+        {"expr": "virgo_connection_duration_ms{quantile=\"p99\"}", "legendFormat": "p99, мс", "refId": "C"},
+        {"expr": "avg by (country, provider) (virgo_node_canary_latency_by_location_ms)", "legendFormat": "Задержка {{country}} / {{provider}}, мс", "refId": "D"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Заполненность и прогноз нод",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "virgo_node_capacity_ratio * 100", "legendFormat": "Заполнено {{node_id}}, %", "refId": "A"},
+        {"expr": "virgo_node_estimated_capacity_exhaustion_hours", "legendFormat": "Осталось {{node_id}}, ч", "refId": "B"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Скорость по странам и провайдерам",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "Bps"}},
+      "targets": [
+        {"expr": "sum by (country, provider) (rate(virgo_node_network_rx_bytes_total[5m]))", "legendFormat": "RX {{country}} / {{provider}}", "refId": "A"},
+        {"expr": "sum by (country, provider) (rate(virgo_node_network_tx_bytes_total[5m]))", "legendFormat": "TX {{country}} / {{provider}}", "refId": "B"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Переключения, переподключения и обрывы",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "virgo_node_failovers_24h", "legendFormat": "Переключения", "refId": "A"},
+        {"expr": "virgo_reconnects_24h", "legendFormat": "Переподключения", "refId": "B"},
+        {"expr": "virgo_unexpected_disconnect_ratio_24h * 100", "legendFormat": "Неожиданные обрывы, %", "refId": "C"}
+      ]
     }
   ],
   "refresh": "15s",

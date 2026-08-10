@@ -205,6 +205,9 @@ class ExtensionInstallation(Base):
 
     installation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     extension_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    browser_name: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    browser_version: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
     launch_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
@@ -227,6 +230,9 @@ class ExtensionLifecycleEvent(Base):
     installation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     event_type: Mapped[str] = mapped_column(String(16), nullable=False)
     extension_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    browser_name: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    browser_version: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
     source_ip: Mapped[str] = mapped_column(String(45), nullable=False)
     received_at: Mapped[datetime] = created_at_column()
 
@@ -236,7 +242,14 @@ class VpnSession(Base):
     __table_args__ = (
         CheckConstraint("status IN ('active','ended','error')", name="status_values"),
         CheckConstraint("connection_errors >= 0", name="connection_errors_nonnegative"),
+        CheckConstraint("failover_count >= 0", name="failover_count_nonnegative"),
+        CheckConstraint("reconnect_count >= 0", name="reconnect_count_nonnegative"),
+        CheckConstraint(
+            "connection_duration_ms IS NULL OR connection_duration_ms >= 0",
+            name="connection_duration_nonnegative",
+        ),
         Index("ix_vpn_sessions_user_started", "user_id", "started_at"),
+        Index("ix_vpn_sessions_started", "started_at"),
         Index("ix_vpn_sessions_active", "status", "last_seen_at"),
     )
 
@@ -252,8 +265,18 @@ class VpnSession(Base):
     )
     source_ip: Mapped[str] = mapped_column(String(45), nullable=False)
     extension_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    browser_name: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    browser_version: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     connection_errors: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    connection_duration_ms: Mapped[int | None] = mapped_column(Integer)
+    failover_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    reconnect_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
     started_at: Mapped[datetime] = created_at_column()
@@ -265,11 +288,16 @@ class UserActivityEvent(Base):
     __tablename__ = "user_activity_events"
     __table_args__ = (
         CheckConstraint(
-            "event_type IN ('vpn_started','vpn_heartbeat','vpn_stopped','connection_error',"
-            "'node_selected','payment_link_created')",
+            "event_type IN ('connection_attempt','vpn_started','vpn_heartbeat','vpn_stopped',"
+            "'connection_error','node_selected','node_failover','reconnect',"
+            "'tariff_viewed','payment_link_created')",
             name="event_type_values",
         ),
+        CheckConstraint(
+            "duration_ms IS NULL OR duration_ms >= 0", name="duration_nonnegative"
+        ),
         Index("ix_user_activity_user_received", "user_id", "received_at"),
+        Index("ix_user_activity_type_received", "event_type", "received_at"),
     )
 
     event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -285,6 +313,11 @@ class UserActivityEvent(Base):
     session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     event_type: Mapped[str] = mapped_column(String(32), nullable=False)
     error_code: Mapped[str | None] = mapped_column(String(64))
+    extension_version: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    browser_name: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    browser_version: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
     source_ip: Mapped[str] = mapped_column(String(45), nullable=False)
     received_at: Mapped[datetime] = created_at_column()
 

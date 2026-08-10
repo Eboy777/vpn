@@ -101,7 +101,10 @@ async function renderNodes() {
     const row = document.createElement("tr");
     cell(row, `${node.country_code} ${node.name}\n${node.host}:${node.port}`);
     const status = cell(row, ""); const badge = document.createElement("span"); badge.className = `status ${node.status}`; badge.textContent = node.status; status.append(badge);
-    cell(row, `${node.assigned_users}/${node.capacity_users}\nсвободно ${node.free_capacity}`);
+    const forecast = node.estimated_capacity_exhaustion_hours === null
+      ? "прогноз —"
+      : `заполнится ~через ${formatDuration(node.estimated_capacity_exhaustion_hours * 3600)}`;
+    cell(row, `${node.assigned_users}/${node.capacity_users} (${node.capacity_percent}%)\nсвободно ${node.free_capacity}\n${forecast}`, node.capacity_alert || "");
     cell(row, `sync: ${time(node.last_sync_at)}\nACK ошибок: ${node.snapshot_ack_failures}\ncanary: ${node.quality_outcome || "—"} / ${node.quality_latency_ms ?? "—"} мс`);
     const runtime = node.runtime;
     cell(row, runtime ? `CPU ${runtime.cpu_percent}%\nRAM ${runtime.memory_percent}%\nДиск ${runtime.disk_percent}%\nGOST ${runtime.gost_up ? "OK" : "DOWN"}` : "Нет телеметрии");
@@ -128,6 +131,40 @@ async function renderNodes() {
     body.append(row);
   }
   document.querySelector("#nodes-updated").textContent = time(data.generated_at);
+}
+
+async function renderQuality() {
+  const data = await api("quality");
+  const duration = data.connection_time_ms;
+  const funnel = data.payment_funnel;
+  const definitions = [
+    ["Попыток подключения", data.connection_attempts],
+    ["Успешно", data.connection_success_percent === null ? "—" : `${data.connection_success_percent}%`],
+    ["Среднее подключение", duration.average === null ? "—" : `${duration.average} мс`],
+    ["p95 / p99", duration.p95 === null ? "—" : `${duration.p95} / ${duration.p99} мс`],
+    ["Переключений нод", data.failovers], ["Переподключений", data.reconnects],
+    ["Неожиданно отключились", data.unexpected_disconnect_percent === null ? "—" : `${data.unexpected_disconnect_percent}%`],
+    ["Тариф → ссылка → оплата", `${funnel.tariff_views} → ${funnel.payment_links_created} → ${funnel.payments_completed}`],
+  ];
+  const root = document.querySelector("#quality"); root.replaceChildren();
+  for (const [label, value] of definitions) {
+    const card = document.createElement("div"); card.className = "card";
+    const title = document.createElement("span"); title.textContent = label;
+    const number = document.createElement("strong"); number.textContent = String(value);
+    card.append(title, number); root.append(card);
+  }
+  const errors = document.querySelector("#quality-errors"); errors.replaceChildren();
+  for (const error of data.errors) {
+    const row = document.createElement("tr");
+    cell(row, error.extension_version); cell(row, error.browser); cell(row, error.platform);
+    cell(row, error.error_code || "—"); cell(row, error.count); errors.append(row);
+  }
+  const ips = document.querySelector("#shared-ips"); ips.replaceChildren();
+  for (const item of data.shared_ips) {
+    const row = document.createElement("tr");
+    cell(row, item.ip, "mono"); cell(row, item.users); cell(row, item.sessions); ips.append(row);
+  }
+  document.querySelector("#quality-updated").textContent = time(data.generated_at);
 }
 
 async function renderUsers() {
@@ -159,7 +196,7 @@ async function renderEvents() {
 }
 
 async function refreshAll() {
-  try { await Promise.all([renderOverview(), renderNodes(), renderUsers(), renderEvents()]); }
+  try { await Promise.all([renderOverview(), renderQuality(), renderNodes(), renderUsers(), renderEvents()]); }
   catch (error) { showNotice(error.message, true); }
 }
 

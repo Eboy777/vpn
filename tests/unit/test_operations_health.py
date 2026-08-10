@@ -44,8 +44,44 @@ def test_operations_health_detects_stale_and_resource_failures(
     assert names == {
         "gost_down",
         "sync_agent_down",
-        "cpu_high",
-        "memory_high",
-        "disk_high",
+        "cpu_critical",
+        "memory_critical",
+        "disk_critical",
         "tls_expiring",
     }
+
+
+def test_operations_health_warns_at_70_and_marks_80_percent_critical(
+    settings_factory: Callable[..., Settings],
+) -> None:
+    worker = OperationsHealthWorker(
+        None, settings_factory(admin_telegram_chat_ids_json=[1])  # type: ignore[arg-type]
+    )
+    now = datetime.now(UTC)
+    metric = NodeRuntimeMetric(
+        node_id=uuid4(),
+        cpu_percent=70,
+        memory_percent=79.9,
+        disk_percent=80,
+        network_rx_bytes=0,
+        network_tx_bytes=0,
+        gost_up=True,
+        sync_agent_up=True,
+        observed_at=now,
+    )
+
+    problems = dict(
+        worker._problems(
+            now,
+            metric,
+            assigned_users=70,
+            capacity_users=100,
+            current_connections=4_000,
+        )
+    )
+
+    assert problems["cpu_warning"] == "70.0%"
+    assert problems["memory_warning"] == "79.9%"
+    assert problems["disk_critical"] == "80.0%"
+    assert problems["capacity_warning"] == "70/100 (70.0%)"
+    assert problems["connections_critical"] == "4000/5000 (80.0%)"

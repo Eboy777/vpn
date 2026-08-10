@@ -39,3 +39,7 @@ def test_remote_node_logs_use_environment_credentials_and_valid_dashboard_json()
     assert "replace-with" not in node_alloy
     assert dashboard["uid"] == "virgo-overview"
     assert {panel["type"] for panel in dashboard["panels"]} >= {"stat", "timeseries", "logs"}
+    titles = {panel["title"] for panel in dashboard["panels"]}
+    assert "Успешность и время подключения" in titles
+    assert "Заполненность и прогноз нод" in titles
+    assert "Скорость по странам и провайдерам" in titles
