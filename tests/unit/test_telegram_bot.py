@@ -10,15 +10,20 @@ from vpn_service.app import create_app
 from vpn_service.application.telegram_bot import (
     ProfileView,
     TelegramBotService,
+    _edit_faq,
+    _edit_payment,
     _is_pairing_start,
+    _phone_placeholder_text,
     _send_connect_hub,
     _send_profile,
     profile_keyboard,
     profile_text,
     reply_keyboard,
+    support_text,
     tariff_price,
     tariffs_keyboard,
     tariffs_text,
+    welcome_text,
 )
 from vpn_service.config import Settings
 from vpn_service.external.telegram import TelegramBotClient, TelegramDeliveryError
@@ -34,22 +39,29 @@ def test_bot_copy_and_keyboards_follow_the_approved_scenarios(
         telegram_id=123456789,
         tariff_name=None,
         access_kind=None,
+        started_at=None,
         expires_at=None,
         remaining_days=None,
     )
+    started_at = datetime(2026, 8, 10, tzinfo=UTC)
     expires_at = datetime(2026, 9, 9, tzinfo=UTC)
     active = ProfileView(
         telegram_id=123456789,
-        tariff_name="Flow",
+        tariff_name="Virgo FLOW",
         access_kind="paid",
+        started_at=started_at,
         expires_at=expires_at,
         remaining_days=30,
     )
 
     assert profile_text(guest) == (
-        "👤 Мой профиль\n\nID: 123456789\nТариф: Подписка не активна"
+        "👤 Мой профиль\n\n"
+        "├ ‣ ID: 123456789\n"
+        "└ ‣ Тариф: Подписка не активна\n\n"
+        "Выберите тарифный план, чтобы оформить доступ!"
     )
-    assert "Тариф: Flow (Активен)" in profile_text(active)
+    assert "Тариф: Virgo FLOW" in profile_text(active)
+    assert "Дата начала: 10.08.2026" in profile_text(active)
     assert "09.09.2026" in profile_text(active)
     assert profile_keyboard(guest, settings)["inline_keyboard"][0][0]["callback_data"] == (
         "menu:tariffs"
@@ -58,14 +70,19 @@ def test_bot_copy_and_keyboards_follow_the_approved_scenarios(
         "phone:setup"
     )
     assert reply_keyboard()["keyboard"] == [
-        [{"text": "⚡ Подключить VPN"}],
+        [{"text": "⚡️ Подключить VPN"}],
         [{"text": "👤 Мой профиль"}, {"text": "💬 Поддержка"}],
     ]
-    assert "Flow" in tariffs_text(settings)
+    assert "Virgo TRIP — 149 ₽ — 15 дней" in tariffs_text(settings)
+    assert "Virgo FLOW — 299 ₽ — 30 дней" in tariffs_text(settings)
+    assert tariff_price(settings.tariffs_json["vpn_15d"]) == "149 ₽"
     assert tariff_price(settings.tariffs_json["vpn_30d"]) == "299 ₽"
-    assert tariffs_keyboard(settings)["inline_keyboard"][-1][0]["callback_data"] == (
-        "menu:profile"
-    )
+    assert len(tariffs_keyboard(settings)["inline_keyboard"]) == 3
+    assert tariffs_keyboard(settings)["inline_keyboard"][-1][0]["callback_data"] == ("menu:profile")
+    assert welcome_text(settings).startswith("Привет! 🛰\n\nДобро пожаловать в Virgo VPN")
+    assert "Служба поддержки Virgo VPN" in support_text()
+    assert "VLESS" not in _phone_placeholder_text()
+    assert "Marzban" not in _phone_placeholder_text()
 
     profile_action = _send_profile(123456789, guest, settings)
     assert profile_action.method == "sendPhoto"
@@ -78,6 +95,22 @@ def test_bot_copy_and_keyboards_follow_the_approved_scenarios(
     assert connect_action.params["caption"] == (
         "У вас нет активной подписки. Подключите тариф для доступа к VPN:"
     )
+
+    payment_action = _edit_payment(
+        123456789,
+        7,
+        "vpn_15d",
+        guest,
+        started_at,
+        settings,
+    )
+    assert "Virgo TRIP на 15 дней" in payment_action.params["text"]
+    assert "25.08.2026" in payment_action.params["text"]
+    assert "Автопродление пока не включено" in payment_action.params["text"]
+
+    browser_faq = _edit_faq(123456789, 7, "browser", 123456789, settings)
+    assert "вход через Telegram" in browser_faq.params["text"]
+    assert "ID из профиля" not in browser_faq.params["text"]
 
 
 @pytest.mark.asyncio

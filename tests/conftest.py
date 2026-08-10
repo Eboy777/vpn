@@ -25,13 +25,22 @@ PRODUCTION_TOKEN_KEYS = {
 }
 PRODUCTION_PROXY_KEYS = {"v1": "cHJvZC1rZXktMDYtMDEyMzQ1Njc4OWFiY2RlZmdoaWo"}
 TARIFFS = {
+    "vpn_15d": {
+        "amount_minor": 14_900,
+        "period_days": 15,
+        "device_limit": 2,
+        "currency": "RUB",
+        "enabled": True,
+        "description": "Лёгкий стартовый план для базовых задач и поездок",
+    },
     "vpn_30d": {
         "amount_minor": 29_900,
         "period_days": 30,
+        "device_limit": 5,
         "currency": "RUB",
         "enabled": True,
-        "description": "Доступ на 30 дней",
-    }
+        "description": "Максимальный комфорт и автоматический выбор сервера",
+    },
 }
 
 

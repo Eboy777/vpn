@@ -602,7 +602,8 @@ async def test_bot_start_and_callback_are_registered_and_queued_once(
                 )
             )
         ).all()
-        assert len(start_actions) == 3
+        assert len(start_actions) == 1
+        assert start_actions[0].payload_json["method"] == "sendPhoto"
 
     callback_update = {
         "update_id": update_id + 1,
@@ -622,7 +623,7 @@ async def test_bot_start_and_callback_are_registered_and_queued_once(
                     "first_name": "Virgo",
                 },
                 "chat": {"id": telegram_id, "type": "private"},
-                "text": "👤 Мой профиль",
+                "caption": "👤 Мой профиль",
             },
             "data": "menu:tariffs",
         },

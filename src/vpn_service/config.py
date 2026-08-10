@@ -32,6 +32,7 @@ class TariffSettings(BaseModel):
 
     amount_minor: Annotated[int, Field(gt=0)]
     period_days: Annotated[int, Field(gt=0)]
+    device_limit: Annotated[int, Field(ge=1, le=10)]
     currency: Literal["RUB"]
     enabled: bool
     description: Annotated[str, Field(min_length=1, max_length=100)]
@@ -250,16 +251,23 @@ class Settings(BaseSettings):
         ):
             raise ValueError("ADMIN_PANEL_PASSWORD_HASH has an invalid format")
 
-        tariff = self.tariffs_json.get("vpn_30d")
-        if tariff is None or len(self.tariffs_json) != 1:
-            raise ValueError("MVP must define exactly the vpn_30d tariff")
-        if (tariff.amount_minor, tariff.period_days, tariff.currency, tariff.enabled) != (
-            29_900,
-            30,
-            "RUB",
-            True,
-        ):
-            raise ValueError("vpn_30d must be enabled and cost 299 RUB for 30 days")
+        expected_tariffs = {
+            "vpn_15d": (14_900, 15, 2, "RUB", True),
+            "vpn_30d": (29_900, 30, 5, "RUB", True),
+        }
+        if set(self.tariffs_json) != set(expected_tariffs):
+            raise ValueError("tariffs must define exactly vpn_15d and vpn_30d")
+        for code, expected in expected_tariffs.items():
+            tariff = self.tariffs_json[code]
+            actual = (
+                tariff.amount_minor,
+                tariff.period_days,
+                tariff.device_limit,
+                tariff.currency,
+                tariff.enabled,
+            )
+            if actual != expected:
+                raise ValueError(f"{code} does not match the approved Virgo tariff")
 
         if self.app_env is AppEnvironment.PRODUCTION:
             self._validate_production_profile()

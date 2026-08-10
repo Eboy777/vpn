@@ -44,7 +44,15 @@ def test_rejects_changed_mvp_tariff(settings_factory: Callable[..., Settings]) -
     tariffs = deepcopy(TARIFFS)
     tariffs["vpn_30d"]["amount_minor"] = 30_000
 
-    with pytest.raises(ValidationError, match="299 RUB for 30 days"):
+    with pytest.raises(ValidationError, match="vpn_30d does not match"):
+        settings_factory(tariffs_json=tariffs)
+
+
+def test_rejects_missing_approved_tariff(settings_factory: Callable[..., Settings]) -> None:
+    tariffs = deepcopy(TARIFFS)
+    tariffs.pop("vpn_15d")
+
+    with pytest.raises(ValidationError, match="exactly vpn_15d and vpn_30d"):
         settings_factory(tariffs_json=tariffs)
 
 

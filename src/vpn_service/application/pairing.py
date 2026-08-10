@@ -12,10 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from vpn_service.application.node_assignment import choose_node
 from vpn_service.config import Settings
-from vpn_service.domain.enums import DeviceStatus, UserStatus
+from vpn_service.domain.enums import DeviceStatus, PaymentStatus, UserStatus
 from vpn_service.domain.errors import ApplicationError
 from vpn_service.http.schemas import TelegramUpdateRequest
-from vpn_service.persistence.models import Device, TelegramUpdateEvent, User
+from vpn_service.persistence.models import Device, Payment, TelegramUpdateEvent, User
 from vpn_service.persistence.rate_limits import RateLimitDecision, consume_rate_limit
 from vpn_service.security.credentials import ProxyCredentialsCipher
 from vpn_service.security.tokens import TokenHasher
@@ -235,7 +235,8 @@ class PairingService:
                     )
                 ).scalar_one()
             )
-            if active_devices >= self._settings.device_limit_per_user:
+            device_limit = await self._device_limit(session, user, now)
+            if active_devices >= device_limit:
                 device.user_id = user.id
                 device.pairing_error_code = "DEVICE_LIMIT_REACHED"
                 _consume_start_token(device)
@@ -259,6 +260,26 @@ class PairingService:
             _consume_start_token(device)
             _finish_telegram_event(event, now, "paired")
             return "paired"
+
+    async def _device_limit(
+        self,
+        session: AsyncSession,
+        user: User,
+        now: datetime,
+    ) -> int:
+        if user.subscription_expires_at is None or user.subscription_expires_at <= now:
+            return self._settings.device_limit_per_user
+        tariff_code = await session.scalar(
+            select(Payment.tariff_code)
+            .where(
+                Payment.user_id == user.id,
+                Payment.status == PaymentStatus.PAID.value,
+            )
+            .order_by(Payment.paid_at.desc(), Payment.created_at.desc())
+            .limit(1)
+        )
+        tariff = self._settings.tariffs_json.get(tariff_code) if tariff_code else None
+        return tariff.device_limit if tariff is not None else self._settings.device_limit_per_user
 
     async def _lock_or_create_user(
         self,
