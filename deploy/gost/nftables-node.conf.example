@@ -66,8 +66,18 @@ table inet vpn_node {
         type filter hook output priority filter; policy accept;
 
         # Scope egress restrictions to the dedicated GOST account. Do not block host SSH.
+        # GOST needs its loopback observer and DNS before private ranges are rejected.
+        meta skuid "gost" ip daddr 127.0.0.1 tcp dport 9001 accept
+        meta skuid "gost" udp dport 53 accept
+        meta skuid "gost" tcp dport 53 accept
+
         meta skuid "gost" tcp dport { 22, 25, 465, 587, 2525 } counter reject with tcp reset
         meta skuid "gost" ip daddr @blocked_ipv4 counter reject with icmpx type admin-prohibited
         meta skuid "gost" ip6 daddr @blocked_ipv6 counter reject with icmpx type admin-prohibited
+
+        # Browser traffic is limited to standard web ports. Reject all other GOST egress,
+        # including BitTorrent peer ports and UDP transports such as DHT/uTP.
+        meta skuid "gost" tcp dport { 80, 443 } accept
+        meta skuid "gost" counter reject with icmpx type admin-prohibited
     }
 }

@@ -56,6 +56,14 @@ def test_node_firewall_scopes_egress_blocks_to_unprivileged_gost_user() -> None:
     assert 'meta skuid "gost" tcp dport { 22, 25, 465, 587, 2525 }' in firewall
     assert 'meta skuid "gost" ip daddr @blocked_ipv4' in firewall
     assert 'meta skuid "gost" ip6 daddr @blocked_ipv6' in firewall
+    assert 'meta skuid "gost" ip daddr 127.0.0.1 tcp dport 9001 accept' in firewall
+    assert 'meta skuid "gost" udp dport 53 accept' in firewall
+    assert 'meta skuid "gost" tcp dport 53 accept' in firewall
+    assert 'meta skuid "gost" tcp dport { 80, 443 } accept' in firewall
+    assert 'meta skuid "gost" counter reject with icmpx type admin-prohibited' in firewall
+    assert firewall.index('meta skuid "gost" ip daddr @blocked_ipv4') < firewall.index(
+        'meta skuid "gost" tcp dport { 80, 443 } accept'
+    )
     assert "tcp dport 443 tcp flags syn limit rate over 2000/second" in firewall
     assert "tcp dport 443 accept" in firewall
 

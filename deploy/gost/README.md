@@ -28,9 +28,12 @@ process without blocking the host's own control-plane traffic.
 ## Enforced baseline
 
 - only managed SSH and HTTPS proxy port 443 are accepted inbound;
-- GOST-originated TCP connections to 22, 25, 465, 587 and 2525 are rejected;
-- GOST cannot reach loopback, RFC1918, link-local, carrier-grade NAT, multicast or other reserved
-  destination ranges, including common cloud metadata paths;
+- GOST can open internet TCP connections only to standard web ports 80 and 443; all other TCP and
+  non-DNS UDP traffic is rejected, which prevents ordinary BitTorrent peer, DHT and uTP traffic;
+- GOST-originated TCP connections to 22, 25, 465, 587 and 2525 are explicitly rejected;
+- GOST cannot reach loopback (except its observer on 127.0.0.1:9001), RFC1918, link-local,
+  carrier-grade NAT, multicast or other reserved destination ranges, including common cloud
+  metadata paths; DNS on port 53 remains allowed for hostname resolution;
 - GOST allows at most 5,000 concurrent connections per node and 256 per source IP;
 - proxy request rate is at most 1,000/s per node and 60/s per source IP;
 - one proxied connection is capped at 25 MB/s in each direction and idle CONNECT tunnels close
@@ -39,7 +42,10 @@ process without blocking the host's own control-plane traffic.
 - authenticated per-user counters and host health are sent to the control API every 15 seconds;
   target sites and traffic contents are not included.
 
-The defaults are deliberately conservative. Change them only after load tests on the actual VPS.
+This is a port-based MVP restriction, not protocol inspection: a peer deliberately listening on
+port 80 or 443 cannot be identified as BitTorrent by nftables alone. Tracker websites remain
+accessible as normal web pages. The defaults are deliberately conservative. Change them only
+after load tests on the actual VPS.
 These are service/IP controls, not per-account traffic quotas. Per-user dynamic limits require an
 authenticated GOST limiter plugin and are outside the MVP baseline.
 
