@@ -96,6 +96,47 @@ async def test_extension_cors_rejects_wrong_method_and_origin(
 
 
 @pytest.mark.asyncio
+async def test_extension_cors_can_temporarily_allow_any_valid_extension_id(
+    settings_factory: Callable[..., Settings],
+) -> None:
+    settings = settings_factory(allowed_extension_origins_json=["chrome-extension://*"])
+    app = create_app(settings, database_probe=_database_probe)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        allowed = await client.options(
+            "/api/status",
+            headers={
+                "Origin": "chrome-extension://bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization",
+            },
+        )
+        website = await client.options(
+            "/api/status",
+            headers={
+                "Origin": "https://attacker.example",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization",
+            },
+        )
+        malformed_extension = await client.options(
+            "/api/status",
+            headers={
+                "Origin": "chrome-extension://not-a-valid-extension-id",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization",
+            },
+        )
+
+    assert allowed.status_code == 204
+    assert allowed.headers["access-control-allow-origin"].endswith("b" * 32)
+    assert website.status_code == 403
+    assert malformed_extension.status_code == 403
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("method", "path", "kwargs"),
     [

@@ -225,11 +225,14 @@ class Settings(BaseSettings):
             self.allowed_extension_origins_json
         ):
             raise ValueError("extension origins must be unique")
-        extension_origin = re.compile(r"^chrome-extension://[a-p]{32}$")
+        extension_origin = re.compile(r"^chrome-extension://(?:[a-p]{32}|\*)$")
         if any(
             not extension_origin.fullmatch(origin) for origin in self.allowed_extension_origins_json
         ):
-            raise ValueError("extension origins must be exact Chrome extension origins")
+            raise ValueError(
+                "extension origins must be exact Chrome extension origins or the temporary "
+                "chrome-extension://* test pattern"
+            )
         if self.telegram_bot_username is not None and not re.fullmatch(
             r"[A-Za-z0-9_]{5,32}", self.telegram_bot_username
         ):

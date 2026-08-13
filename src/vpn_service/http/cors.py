@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -22,6 +23,8 @@ _PATH_METHODS = {
 _ALLOWED_HEADERS = {"authorization", "content-type", "idempotency-key", "x-request-id"}
 _ALLOW_HEADERS_VALUE = "Authorization, Content-Type, Idempotency-Key, X-Request-ID"
 _EXPOSE_HEADERS = "X-Request-ID, Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining"
+_ANY_EXTENSION_ORIGIN = "chrome-extension://*"
+_EXTENSION_ORIGIN = re.compile(r"^chrome-extension://[a-p]{32}$")
 
 
 class ExtensionCorsMiddleware(BaseHTTPMiddleware):
@@ -29,20 +32,28 @@ class ExtensionCorsMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self._allowed_origins = frozenset(allowed_origins)
 
+    def _is_allowed(self, origin: str | None) -> bool:
+        if origin is None:
+            return False
+        return origin in self._allowed_origins or (
+            _ANY_EXTENSION_ORIGIN in self._allowed_origins
+            and _EXTENSION_ORIGIN.fullmatch(origin) is not None
+        )
+
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         origin = request.headers.get("origin")
         if request.method == "OPTIONS" and request.url.path in _PATH_METHODS:
             return self._preflight(request, origin)
 
         response = await call_next(request)
-        if origin in self._allowed_origins and request.url.path in _PATH_METHODS:
+        if self._is_allowed(origin) and request.url.path in _PATH_METHODS:
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Expose-Headers"] = _EXPOSE_HEADERS
             _append_vary(response, ["Origin"])
         return response
 
     def _preflight(self, request: Request, origin: str | None) -> Response:
-        if origin not in self._allowed_origins:
+        if not self._is_allowed(origin):
             return error_response(
                 status_code=403,
                 code="CORS_ORIGIN_DENIED",
