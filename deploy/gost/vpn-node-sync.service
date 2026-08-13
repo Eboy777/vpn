@@ -1,8 +1,7 @@
 [Unit]
 Description=VPN GOST credential sync agent
 After=network-online.target gost.service
-Wants=network-online.target
-Requires=gost.service
+Wants=network-online.target gost.service
 
 [Service]
 Type=simple

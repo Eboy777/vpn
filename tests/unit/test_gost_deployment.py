@@ -54,6 +54,7 @@ def test_node_firewall_scopes_egress_blocks_to_unprivileged_gost_user() -> None:
     assert "flush ruleset" not in firewall
     assert "policy drop;" in firewall
     assert 'meta skuid "gost" tcp dport { 22, 25, 465, 587, 2525 }' in firewall
+    assert 'meta skuid "gost" ct state established,related accept' in firewall
     assert 'meta skuid "gost" ip daddr @blocked_ipv4' in firewall
     assert 'meta skuid "gost" ip6 daddr @blocked_ipv6' in firewall
     assert 'meta skuid "gost" ip daddr 127.0.0.1 tcp dport 9001 accept' in firewall
@@ -63,6 +64,9 @@ def test_node_firewall_scopes_egress_blocks_to_unprivileged_gost_user() -> None:
     assert 'meta skuid "gost" counter reject with icmpx type admin-prohibited' in firewall
     assert firewall.index('meta skuid "gost" ip daddr @blocked_ipv4') < firewall.index(
         'meta skuid "gost" tcp dport { 80, 443 } accept'
+    )
+    assert firewall.index('meta skuid "gost" ct state established,related accept') < firewall.index(
+        'meta skuid "gost" ip daddr @blocked_ipv4'
     )
     assert "tcp dport 443 tcp flags syn limit rate over 2000/second" in firewall
     assert "tcp dport 443 accept" in firewall
@@ -81,6 +85,8 @@ def test_gost_service_uses_dedicated_user_and_minimal_bind_capability() -> None:
     assert "User=root" in sync_service
     assert "Group=gost" in sync_service
     assert "UMask=0027" in sync_service
+    assert "Wants=network-online.target gost.service" in sync_service
+    assert "Requires=gost.service" not in sync_service
 
 
 def test_deployment_requires_firewall_dry_run_and_exact_ssh_sources() -> None:

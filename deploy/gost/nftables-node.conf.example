@@ -66,6 +66,9 @@ table inet vpn_node {
         type filter hook output priority filter; policy accept;
 
         # Scope egress restrictions to the dedicated GOST account. Do not block host SSH.
+        # Permit replies on client-initiated proxy connections before limiting new GOST egress.
+        meta skuid "gost" ct state established,related accept
+
         # GOST needs its loopback observer and DNS before private ranges are rejected.
         meta skuid "gost" ip daddr 127.0.0.1 tcp dport 9001 accept
         meta skuid "gost" udp dport 53 accept
