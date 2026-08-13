@@ -1,13 +1,12 @@
-// This file is part of the signed extension package. Replace the placeholder values only
-// during the release build and verify that both origins exactly match PUBLIC_CONTROL_URLS_JSON.
+// This file is part of the signed extension package. Both origins must exactly match
+// PUBLIC_CONTROL_URLS_JSON in their intended failover order.
 export const BUILD_CONFIG = Object.freeze({
   controlUrls: Object.freeze([
-    "https://api-a.example.test",
-    "https://api-b.example.test",
+    "https://invalid-control.virgo-vpn.site",
+    "https://api.virgo-vpn.site",
   ]),
   discoveryPublicKeys: Object.freeze({
-    // Development-only P-256 public key. Replace together with controlUrls for release.
-    v1: "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU",
+    v1: "BCyntUK8FshqXbTTN-Xg29En0nUhlwMrtJuv7Dkg6G50wwEIFcpx8vhPQZDAlDsF0Ut1ReiabuWOkh_7G2fQKco",
   }),
   discoveryRefreshSeconds: 900,
   discoveryMaxStaleSeconds: 604_800,
