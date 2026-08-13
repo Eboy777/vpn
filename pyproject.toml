@@ -28,9 +28,6 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/vpn_service"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"src/vpn_service/assets" = "vpn_service/assets"
-
 [project.scripts]
 vpn-node-sync = "vpn_service.node_agent.main:main"
 vpn-admin = "vpn_service.admin_cli:main"
