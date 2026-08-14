@@ -118,7 +118,7 @@ class Settings(BaseSettings):
     telegram_support_username: str | None = None
     chrome_web_store_url: AnyHttpUrl | None = None
     vpn_brand_name: Annotated[str, Field(min_length=1, max_length=32)] = "Virgo"
-    subscription_reminder_poll_seconds: Annotated[int, Field(ge=60)] = 3600
+    subscription_reminder_poll_seconds: Annotated[int, Field(ge=60)] = 300
 
     node_assignment_hard_capacity: bool = True
     node_block_failure_threshold: Annotated[int, Field(ge=1)] = 3
