@@ -316,3 +316,29 @@ def test_pairing_start_detection_requires_separate_43_character_token() -> None:
 
     assert TelegramBotService is not None
     assert _is_pairing_start(update)
+
+
+def test_support_deep_link_opens_support_section(
+    settings_factory: Callable[..., Settings],
+) -> None:
+    service = TelegramBotService.__new__(TelegramBotService)
+    service._settings = settings_factory()  # noqa: SLF001
+    profile = ProfileView(123456789, None, None, None, None, None)
+    message = TelegramUpdateRequest.model_validate(
+        {
+            "update_id": 2,
+            "message": {
+                "message_id": 2,
+                "date": 1_786_000_000,
+                "from": {"id": 123456789, "is_bot": False, "first_name": "Test"},
+                "chat": {"id": 123456789, "type": "private"},
+                "text": "/start support",
+            },
+        }
+    ).message
+    assert message is not None
+
+    action = service._message_actions(message, profile=profile)[0]  # noqa: SLF001
+
+    assert action.method == "sendMessage"
+    assert "Служба поддержки Virgo VPN" in action.params["text"]

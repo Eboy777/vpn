@@ -44,6 +44,7 @@ async def status(request: Request) -> ContractJSONResponse:
     )
     body = StatusResponse(
         device_id=result.device_id,
+        account_id=result.account_id,
         access=AccessDetailsResponse(
             state=result.state.value,
             trial_expires_at=result.trial_expires_at,

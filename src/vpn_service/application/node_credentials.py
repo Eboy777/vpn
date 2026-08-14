@@ -38,6 +38,7 @@ class SnapshotCredential:
     proxy_username: str
     proxy_password: str
     valid_until: str
+    bandwidth_limit_bytes_per_second: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -338,6 +339,12 @@ class NodeCredentialsService:
             proxy_username=user.proxy_username,
             proxy_password=self._credentials.decrypt(user.id, user.proxy_password_ciphertext),
             valid_until=_format_datetime(valid_until),
+            bandwidth_limit_bytes_per_second=(
+                0
+                if user.subscription_expires_at is not None
+                and user.subscription_expires_at > now
+                else self._settings.trial_bandwidth_limit_bytes_per_second
+            ),
         )
 
     async def _enforce_rate_limit(self, node_id: uuid.UUID) -> None:
@@ -467,6 +474,9 @@ def _revision(status: str, credentials: list[SnapshotCredential]) -> str:
                 "proxy_username": credential.proxy_username,
                 "proxy_password": credential.proxy_password,
                 "valid_until": credential.valid_until,
+                "bandwidth_limit_bytes_per_second": (
+                    credential.bandwidth_limit_bytes_per_second
+                ),
             }
             for credential in credentials
         ],

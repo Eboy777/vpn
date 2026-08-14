@@ -8,6 +8,7 @@ import pytest
 
 from vpn_service.node_observer.config import NodeObserverSettings
 from vpn_service.node_observer.service import (
+    LimiterRequest,
     NodeObserver,
     ObserverEvent,
     ObserverPayload,
@@ -113,3 +114,32 @@ async def test_node_observer_retries_the_same_report_after_an_uncertain_failure(
 
 async def _false() -> bool:
     return False
+
+
+def test_account_limiter_uses_authenticated_client_not_source_ip(tmp_path) -> None:
+    limits = tmp_path / "account-limits.json"
+    limits.write_text(json.dumps({"u_abcdefghijklmnopqrstuvwxyz": 5_000_000}))
+    settings = NodeObserverSettings(
+        control_api_base_url="https://api-a.example.test",
+        node_id=uuid.uuid4(),
+        node_credentials_token="N" * 43,
+        gost_account_limits_path=limits,
+    )
+    observer = NodeObserver(settings, service_probe=lambda _: _false())
+
+    first = observer.account_limit(LimiterRequest(
+        scope="client",
+        client="u_abcdefghijklmnopqrstuvwxyz",
+    ))
+    paid = observer.account_limit(LimiterRequest(
+        scope="client",
+        client="u_zyxwvutsrqponmlkjihgfedcba",
+    ))
+    connection_scope = observer.account_limit(LimiterRequest(
+        scope="conn",
+        client="u_abcdefghijklmnopqrstuvwxyz",
+    ))
+
+    assert first == {"in": 5_000_000, "out": 5_000_000}
+    assert paid == {"in": 0, "out": 0}
+    assert connection_scope == {"in": 0, "out": 0}

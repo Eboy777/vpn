@@ -12,7 +12,6 @@
         <button class="brand" data-action="home" type="button" aria-label="Главная Virgo">
           <img class="brand-mark" src="assets/virgo-logo.png" alt="" aria-hidden="true">
           <span class="brand-name">Virgo</span>
-          <span class="brand-version" id="version">v1.0.0</span>
         </button>
         <nav class="icon-nav" id="icon-nav" aria-label="Быстрые действия">
           <button class="round-icon telegram-icon" data-action="telegram" type="button" title="Telegram" aria-label="Telegram">➤</button>
@@ -65,7 +64,7 @@
         <article class="access-card">
           <h2 id="access-title">Пробный период</h2>
           <p id="access-expiry">Проверяем срок доступа…</p>
-          <button class="danger-button" data-action="tariffs" type="button">Продлить подписку</button>
+          <button class="danger-button renewal-button" id="renewal-button" data-action="tariffs" type="button">Продлить подписку</button>
         </article>
       </section>
 
@@ -119,7 +118,7 @@
         <h1>Настройки</h1>
         <dl class="settings-list">
           <div><dt>Язык</dt><dd>Русский</dd></div>
-          <div><dt>Тема</dt><dd>Тёмная</dd></div>
+          <div><dt>ID</dt><dd id="device-id">—</dd></div>
           <div><dt>Аккаунт</dt><dd id="account-state">Привязан</dd></div>
         </dl>
         <a class="agreement-link" id="agreement-link" href="#">Пользовательское соглашение</a>

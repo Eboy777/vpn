@@ -15,7 +15,8 @@ export const BUILD_CONFIG = Object.freeze({
   statusAlarmMinutes: 1,
   controlOfflineGraceSeconds: 300,
   userAgreementUrl: "",
-  supportUrl: "",
+  telegramBotUrl: "https://t.me/virgo1vpn_bot",
+  telegramSupportUrl: "https://t.me/virgo1vpn_bot?start=support",
 });
 
 export function validateBuildConfig(config = BUILD_CONFIG) {
@@ -73,7 +74,8 @@ export function validateBuildConfig(config = BUILD_CONFIG) {
   }
   for (const [name, value] of [
     ["userAgreementUrl", config.userAgreementUrl],
-    ["supportUrl", config.supportUrl],
+    ["telegramBotUrl", config.telegramBotUrl],
+    ["telegramSupportUrl", config.telegramSupportUrl],
   ]) {
     if (value && new URL(value).protocol !== "https:") {
       throw new Error(`${name} must use HTTPS`);

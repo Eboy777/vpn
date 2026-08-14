@@ -13,7 +13,9 @@ DEPLOYMENT_README = ROOT / "deploy/gost/README.md"
 def test_gost_config_enforces_request_connection_and_bandwidth_limits() -> None:
     config = GOST_CONFIG.read_text()
 
-    assert "limiter: vpn-bandwidth" in config
+    assert "limiter: vpn-connection-bandwidth" in config
+    assert "limiter: vpn-account-bandwidth" in config
+    assert "addr: http://127.0.0.1:9001/limiter" in config
     assert "rlimiter: vpn-request-rate" in config
     assert "climiter: vpn-connections" in config
     assert '- "$$ 25MB 25MB"' in config

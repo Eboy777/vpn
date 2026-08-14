@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import shutil
 import uuid
 from collections.abc import Awaitable, Callable
@@ -44,6 +45,13 @@ class ObserverPayload(BaseModel):
     events: Annotated[list[ObserverEvent], Field(max_length=10_000)]
 
 
+class LimiterRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    scope: str
+    client: Annotated[str, Field(max_length=128)] | None = None
+
+
 @dataclass(slots=True)
 class TrafficDelta:
     total_connections: int = 0
@@ -84,6 +92,8 @@ class NodeObserver:
         self._pending: dict[str, TrafficDelta] = {}
         self._inflight: dict[str, object] | None = None
         self._previous_cpu: tuple[int, int] | None = None
+        self._limits_mtime_ns: int | None = None
+        self._account_limits: dict[str, int] = {}
 
     async def close(self) -> None:
         if self._owns_client:
@@ -105,6 +115,38 @@ class NodeObserver:
                 delta.add(event.stats, self._settings.node_observer_report_interval_seconds)
                 accepted += 1
         return accepted
+
+    def account_limit(self, request: LimiterRequest) -> dict[str, int]:
+        if request.scope != "client" or request.client is None:
+            return {"in": 0, "out": 0}
+        self._reload_account_limits()
+        value = self._account_limits.get(request.client, 0)
+        return {"in": value, "out": value}
+
+    def _reload_account_limits(self) -> None:
+        path = self._settings.gost_account_limits_path
+        try:
+            stat = path.stat()
+            if stat.st_mtime_ns == self._limits_mtime_ns:
+                return
+            raw = json.loads(path.read_text())
+            if not isinstance(raw, dict):
+                raise ValueError("account limits must be an object")
+            parsed = {
+                username: value
+                for username, value in raw.items()
+                if isinstance(username, str)
+                and username.startswith("u_")
+                and isinstance(value, int)
+                and not isinstance(value, bool)
+                and 0 <= value <= 10**10
+            }
+            if len(parsed) != len(raw):
+                raise ValueError("account limits contain an invalid entry")
+        except (OSError, ValueError, TypeError):
+            return
+        self._account_limits = parsed
+        self._limits_mtime_ns = stat.st_mtime_ns
 
     async def flush(self) -> bool:
         async with self._flush_lock:
@@ -218,6 +260,12 @@ def create_observer_app(
             return {"ok": False}
         await resolved.observe(payload)
         return {"ok": True}
+
+    @app.post("/limiter")
+    async def limit(request: Request, payload: LimiterRequest) -> dict[str, int]:
+        if request.client is None or request.client.host not in {"127.0.0.1", "::1"}:
+            return {"in": 0, "out": 0}
+        return resolved.account_limit(payload)
 
     return app
 

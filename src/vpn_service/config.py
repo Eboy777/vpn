@@ -86,6 +86,7 @@ class Settings(BaseSettings):
     proxy_credentials_active_key_id: str
 
     trial_duration_seconds: Annotated[int, Field(gt=0)] = 86_400
+    trial_bandwidth_limit_bytes_per_second: Annotated[int, Field(gt=0)] = 5_000_000
     pairing_token_ttl_seconds: Annotated[int, Field(gt=0)] = 600
     device_limit_per_user: Annotated[int, Field(gt=0)] = 3
     pairing_poll_after_seconds: Annotated[int, Field(ge=2, le=60)] = 2
@@ -342,6 +343,8 @@ class Settings(BaseSettings):
                 raise ValueError("production proxy keyring contains a development dummy key")
         if self.trial_duration_seconds != 86_400:
             raise ValueError("production trial must be 24 hours")
+        if self.trial_bandwidth_limit_bytes_per_second != 5_000_000:
+            raise ValueError("production trial bandwidth limit must be 40 Mbit/s")
         if self.device_limit_per_user != 3:
             raise ValueError("production device limit must be 3")
         if (

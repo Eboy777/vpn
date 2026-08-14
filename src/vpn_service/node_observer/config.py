@@ -22,6 +22,7 @@ class NodeObserverSettings(BaseSettings):
     node_observer_http_timeout_seconds: Annotated[float, Field(gt=1, le=60)] = 10
     node_tls_cert_path: Path = Path("/etc/gost/tls/fullchain.pem")
     node_metrics_disk_path: Path = Path("/")
+    gost_account_limits_path: Path = Path("/var/lib/vpn-node/account-limits.json")
 
     @model_validator(mode="after")
     def validate_observer(self) -> NodeObserverSettings:

@@ -17,6 +17,7 @@ export function initialState(deviceId = crypto.randomUUID()) {
     controlRateLimitedUntil: 0,
     controlUnavailableSince: null,
     nextStatusCheckAt: 0,
+    accessSafetyDeadline: null,
     discoveryDocument: null,
     discoveryRefreshAt: 0,
     lastError: null,
@@ -37,6 +38,7 @@ export function createStateStore(storageArea = chrome.storage.local) {
         controlRateLimitedUntil: Number(stored.controlRateLimitedUntil) || 0,
         controlUnavailableSince: Number(stored.controlUnavailableSince) || null,
         nextStatusCheckAt: Number(stored.nextStatusCheckAt) || 0,
+        accessSafetyDeadline: Number(stored.accessSafetyDeadline) || null,
         connectionAttemptStartedAt: Number(stored.connectionAttemptStartedAt) || null,
         hadSuccessfulConnection: Boolean(stored.hadSuccessfulConnection),
         discoveryDocument: stored.discoveryDocument && typeof stored.discoveryDocument === "object"

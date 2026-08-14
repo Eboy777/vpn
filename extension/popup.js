@@ -4,7 +4,6 @@ import {renderTelegramQr} from "./src/qr.js";
 const screens = [...document.querySelectorAll("[data-screen]")];
 const appShell = document.querySelector(".app-shell");
 const notice = document.querySelector("#notice");
-const version = document.querySelector("#version");
 const iconNav = document.querySelector("#icon-nav");
 const agreementLink = document.querySelector("#agreement-link");
 let viewModel = null;
@@ -58,9 +57,11 @@ async function act(action, actionElement = null) {
       void send("TRACK_EVENT", {eventType: "tariff_viewed"}).catch(() => undefined);
       return;
     case "settings":
-    case "help":
       currentScreen = "settings";
       render();
+      return;
+    case "help":
+      openExternal(BUILD_CONFIG.telegramSupportUrl);
       return;
     case "locations":
       if (!viewModel.status?.access?.can_select_node) return;
@@ -79,7 +80,7 @@ async function act(action, actionElement = null) {
       });
       return;
     case "telegram":
-      openExternal(BUILD_CONFIG.supportUrl);
+      openExternal(BUILD_CONFIG.telegramBotUrl);
       return;
     case "payment-placeholder":
       showNotice("Оплата пока отключена до завершения юридической и фискальной настройки.");
@@ -125,7 +126,6 @@ async function runBusy(task) {
 function render() {
   clearTimeout(pairingTimer);
   clearInterval(clockTimer);
-  version.textContent = `v${viewModel.extensionVersion}`;
   iconNav.hidden = !viewModel.paired;
   agreementLink.href = BUILD_CONFIG.userAgreementUrl || "#";
   agreementLink.target = BUILD_CONFIG.userAgreementUrl ? "_blank" : "";
@@ -147,6 +147,7 @@ function render() {
   if (screen === "dashboard") renderDashboard();
   if (screen === "locations") renderLocations();
   if (screen === "settings") {
+    document.querySelector("#device-id").textContent = viewModel.status?.account_id || "—";
     document.querySelector("#account-state").textContent = viewModel.paired ? "Привязан" : "Не привязан";
   }
 }
@@ -223,6 +224,14 @@ function renderDashboard() {
   document.querySelector("#access-expiry").textContent = expiry
     ? `Активен до ${formatDate(expiry)}`
     : "Срок доступа ещё не получен";
+  const renewalButton = document.querySelector("#renewal-button");
+  const serverTime = Date.parse(status?.server_time || "");
+  const expiryTime = Date.parse(expiry || "");
+  const paidNotUrgent = accessState === "paid"
+    && Number.isFinite(serverTime)
+    && Number.isFinite(expiryTime)
+    && expiryTime - serverTime > 3 * 86_400_000;
+  renewalButton.classList.toggle("renewal-quiet", paidNotUrgent);
   updateConnectionClock();
   clockTimer = setInterval(updateConnectionClock, 1000);
 }
@@ -342,13 +351,12 @@ function previewModel(screen) {
       vpn: {available: true, node: {name: "NL-1", country_code: "NL"}},
     } : null,
     lastError: null,
-    extensionVersion: "1.0.0",
   };
 }
 
 function openExternal(url) {
   if (!url) {
-    showNotice("Ссылка поддержки будет добавлена перед публикацией.");
+    showNotice("Ссылка на Telegram будет добавлена перед публикацией.");
     return;
   }
   window.open(url, "_blank", "noopener,noreferrer");

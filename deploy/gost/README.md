@@ -46,8 +46,11 @@ This is a port-based MVP restriction, not protocol inspection: a peer deliberate
 port 80 or 443 cannot be identified as BitTorrent by nftables alone. Tracker websites remain
 accessible as normal web pages. The defaults are deliberately conservative. Change them only
 after load tests on the actual VPS.
-These are service/IP controls, not per-account traffic quotas. Per-user dynamic limits require an
-authenticated GOST limiter plugin and are outside the MVP baseline.
+Trial traffic is additionally limited to 40 Mbit/s per authenticated account by the loopback-only
+limiter endpoint. GOST supplies the authenticated proxy username as the client ID, so concurrent
+connections share the account policy while unrelated users behind the same source IP do not share
+bandwidth. Paid accounts return zero (unlimited) from this account limiter; the coarse anti-abuse
+IP and per-connection limits remain active for everyone.
 
 Do not enable GOST `probeResist` for this browser extension: it replaces the proxy `407`
 authentication challenge that `onAuthRequired` needs to supply user credentials.

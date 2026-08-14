@@ -42,6 +42,7 @@ class PublicNode:
 @dataclass(frozen=True, slots=True)
 class AccessResult:
     device_id: uuid.UUID
+    account_id: int
     state: AccessState
     trial_expires_at: datetime | None
     subscription_expires_at: datetime | None
@@ -116,6 +117,7 @@ class AccessService:
                 password = self._credentials.decrypt(user.id, user.proxy_password_ciphertext)
             return AccessResult(
                 device_id=device.device_id,
+                account_id=user.telegram_id,
                 state=state,
                 trial_expires_at=user.trial_expires_at,
                 subscription_expires_at=user.subscription_expires_at,

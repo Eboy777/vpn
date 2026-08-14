@@ -17,6 +17,7 @@ PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
 ReadOnlyPaths=/etc/gost/tls
+ReadOnlyPaths=-/var/lib/vpn-node/account-limits.json
 
 [Install]
 WantedBy=multi-user.target

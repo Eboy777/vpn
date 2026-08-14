@@ -53,6 +53,8 @@ class NodeSyncAgent:
             settings.gost_config_path,
             settings.gost_config_staging_path,
             settings.node_sync_state_path,
+            settings.gost_account_limits_path,
+            settings.gost_account_limits_staging_path,
         )
 
     async def close(self) -> None:
@@ -97,8 +99,10 @@ class NodeSyncAgent:
         snapshot = self._validate_snapshot_response(response)
         if snapshot.node_id != self._settings.node_id:
             raise RuntimeError("snapshot node identity mismatch")
-        content = self._render(snapshot.credentials)
-        await self._apply_auth(content)
+        await self._apply_snapshot(
+            self._render(snapshot.credentials),
+            self._render_limits(snapshot.credentials),
+        )
         pending = AgentState(
             revision=snapshot.revision,
             snapshot_valid_until=snapshot.snapshot_valid_until,
@@ -137,12 +141,17 @@ class NodeSyncAgent:
             await self._apply_fail_closed()
 
     async def _apply_fail_closed(self) -> None:
-        await self._apply_auth(self._render([]))
+        await self._apply_snapshot(self._render([]), self._render_limits([]))
         self._files.save_state(AgentState(failed_closed=True))
         logger.warning("node_credentials_failed_closed")
 
-    async def _apply_auth(self, content: bytes) -> None:
-        previous = self._files.replace_auth(content)
+    async def _apply_snapshot(self, auth_content: bytes, limits_content: bytes) -> None:
+        previous_auth = self._files.replace_auth(auth_content)
+        try:
+            previous_limits = self._files.replace_limits(limits_content)
+        except BaseException:
+            self._files.restore_auth(previous_auth)
+            raise
         try:
             await self._run_command(
                 RELOAD_COMMAND,
@@ -153,7 +162,8 @@ class NodeSyncAgent:
                 self._settings.gost_reload_timeout_seconds,
             )
         except BaseException:
-            self._files.restore_auth(previous)
+            self._files.restore_auth(previous_auth)
+            self._files.restore_limits(previous_limits)
             await self._run_command(
                 RELOAD_COMMAND,
                 self._settings.gost_reload_timeout_seconds,
@@ -254,6 +264,14 @@ class NodeSyncAgent:
             canary_version=self._settings.gost_canary_credential_version,
         )
 
+    @staticmethod
+    def _render_limits(credentials: list[SnapshotCredential]) -> bytes:
+        payload = {
+            item.proxy_username: item.bandwidth_limit_bytes_per_second
+            for item in credentials
+        }
+        return (json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n").encode()
+
     def _authorization_headers(self) -> dict[str, str]:
         return {
             "Authorization": ("Bearer " + self._settings.node_credentials_token.get_secret_value())
@@ -317,6 +335,7 @@ def _snapshot_revision(snapshot: CredentialsSnapshot) -> str:
                 "proxy_username": item.proxy_username,
                 "proxy_password": item.proxy_password,
                 "valid_until": _format_datetime(item.valid_until),
+                "bandwidth_limit_bytes_per_second": item.bandwidth_limit_bytes_per_second,
             }
             for item in snapshot.credentials
         ],

@@ -4,12 +4,13 @@ services:
     # Reject access to local/private infrastructure before GOST opens an upstream socket.
     bypass: vpn-deny-private
     # Conservative MVP defaults. Tune only after a measured load test.
-    limiter: vpn-bandwidth
+    limiter: vpn-connection-bandwidth
     rlimiter: vpn-request-rate
     climiter: vpn-connections
     handler:
       type: http
       auther: vpn-users
+      limiter: vpn-account-bandwidth
       observer: vpn-user-traffic
       metadata:
         idleTimeout: 10m
@@ -64,9 +65,13 @@ bypasses:
 
 # 25 MB/s is approximately 200 Mbit/s in each direction for one proxied connection.
 limiters:
-  - name: vpn-bandwidth
+  - name: vpn-connection-bandwidth
     limits:
       - "$$ 25MB 25MB"
+  - name: vpn-account-bandwidth
+    plugin:
+      type: http
+      addr: http://127.0.0.1:9001/limiter
 
 # Requests are limited globally and per source IP. Authentication is still mandatory.
 rlimiters:

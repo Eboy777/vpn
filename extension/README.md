@@ -25,8 +25,8 @@ Preview mode contains no real tokens and does not change browser proxy settings.
 
 1. Replace both placeholder HTTPS origins in `src/config.js` with the two deployed API proxy
    origins. Never put the private FastAPI origin in this file.
-2. Set `userAgreementUrl` and `supportUrl` when those pages are published. The agreement link is
-   visible but intentionally inactive while `userAgreementUrl` is empty.
+2. Set `userAgreementUrl`, `telegramBotUrl`, and `telegramSupportUrl` before publishing. The
+   agreement link is visible but intentionally inactive while `userAgreementUrl` is empty.
 3. Load this `extension` directory as an unpacked extension.
 4. Copy its stable extension ID to backend `ALLOWED_EXTENSION_ORIGINS_JSON` in the exact form
    `chrome-extension://<id>`.

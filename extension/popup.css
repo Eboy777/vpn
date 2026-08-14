@@ -37,7 +37,6 @@ button { color: inherit; }
 .topbar { display: flex; align-items: center; justify-content: space-between; min-height: 54px; }
 .brand { display: flex; align-items: center; gap: 9px; padding: 0; border: 0; background: none; cursor: pointer; }
 .brand-name { font-size: 34px; line-height: 1; font-weight: 700; letter-spacing: -.04em; }
-.brand-version { color: #aaa; font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 .brand-mark, .hero-logo { display: block; object-fit: contain; }
 .brand-mark { width: 30px; height: 42px; }
@@ -105,6 +104,12 @@ button { color: inherit; }
 .access-card h2 { margin: 0 0 10px; font-size: 24px; }
 .access-card p { margin: 0 0 17px; font-size: 15px; }
 .access-card .danger-button { min-height: 44px; }
+.access-card .renewal-button { transition: background .2s, border-color .2s, color .2s; }
+.access-card .renewal-button.renewal-quiet {
+  border: 1px solid rgba(255,255,255,.45);
+  background: transparent;
+  color: #f5f5f5;
+}
 
 .tariffs { text-align: center; }
 .tariffs h1 { margin-bottom: 8px; font-size: 32px; }

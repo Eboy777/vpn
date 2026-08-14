@@ -174,6 +174,8 @@ class TelegramBotService:
         profile: ProfileView,
     ) -> list[TelegramAction]:
         text = (message.text or "").strip()
+        if re.fullmatch(r"/start(?:@[A-Za-z0-9_]{5,32})? support", text):
+            return [_send_support(message.chat.id, profile.telegram_id, self._settings)]
         if text.startswith("/start"):
             return [_send_welcome(message.chat.id, self._settings)]
         if text in {"⚡ Подключить VPN", "⚡️ Подключить VPN"}:

@@ -11,6 +11,7 @@ import {shouldDisableProxy} from "./src/safety.js";
 
 const CONFIG = validateBuildConfig(BUILD_CONFIG);
 const STATUS_ALARM = "virgo-status-refresh";
+const ACCESS_EXPIRY_ALARM = "virgo-access-expiry-safety";
 const store = createStateStore();
 const api = new ControlApiClient({
   config: CONFIG,
@@ -43,6 +44,9 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === STATUS_ALARM) {
     void enqueueOperation(() => refreshStatus({force: false})).catch(() => undefined);
+  }
+  if (alarm.name === ACCESS_EXPIRY_ALARM) {
+    void enqueueOperation(enforceLocalSafetyDeadline).catch(() => undefined);
   }
 });
 
@@ -93,6 +97,7 @@ async function bootstrap() {
   await refreshDiscoveryIfDue().catch(() => undefined);
   const state = await store.read();
   if (state.vpnEnabled && state.deviceToken) {
+    await scheduleAccessExpiryAlarm(state.status);
     if (state.nextStatusCheckAt <= Date.now()) {
       await refreshStatus({force: false}).catch(() => enforceLocalSafetyDeadline());
     } else {
@@ -101,6 +106,7 @@ async function bootstrap() {
     }
   } else {
     await chrome.alarms.clear(STATUS_ALARM);
+    await chrome.alarms.clear(ACCESS_EXPIRY_ALARM);
     if (state.currentProxy) {
       await proxyController.disable();
       await store.update((current) => ({
@@ -208,6 +214,7 @@ async function setVpn(enabled) {
     await reportVpnEvent("vpn_stopped").catch(() => undefined);
     await proxyController.disable();
     await chrome.alarms.clear(STATUS_ALARM);
+    await chrome.alarms.clear(ACCESS_EXPIRY_ALARM);
     const next = await store.write({
       ...state,
       vpnEnabled: false,
@@ -218,6 +225,7 @@ async function setVpn(enabled) {
       hadSuccessfulConnection: false,
       controlUnavailableSince: null,
       nextStatusCheckAt: 0,
+      accessSafetyDeadline: null,
       lastError: null,
     });
     await updateBadge(next);
@@ -270,14 +278,19 @@ async function performStatusRefresh({force}) {
     const status = await api.status(state.deviceToken);
     validateStatusBypass(status);
     const nextCheckSeconds = Math.max(60, Number(status.next_check_seconds) || 60);
+    const accessSafetyDeadline = calculateAccessSafetyDeadline(status);
     let next = {
       ...state,
       status,
       controlUnavailableSince: null,
       nextStatusCheckAt: Date.now() + nextCheckSeconds * 1000,
+      accessSafetyDeadline,
       lastError: null,
     };
-    const newProxy = proxyFromStatus(status);
+    await scheduleAccessExpiryAlarm(status);
+    const newProxy = accessSafetyDeadline !== null && accessSafetyDeadline <= Date.now()
+      ? null
+      : proxyFromStatus(status);
     const nodeChanged = Boolean(
       state.vpnEnabled
       && state.currentProxy?.nodeId
@@ -319,6 +332,7 @@ async function performStatusRefresh({force}) {
         connectionAttemptStartedAt: null,
       };
       if (finalAccessState) await chrome.alarms.clear(STATUS_ALARM);
+      if (finalAccessState) await chrome.alarms.clear(ACCESS_EXPIRY_ALARM);
     }
     let saved;
     try {
@@ -447,11 +461,13 @@ async function enforceLocalSafetyDeadline() {
   if (!shouldDisableProxy({
     now: Date.now(),
     accessExpiresAt: state.status?.access?.access_expires_at,
+    accessSafetyDeadline: state.accessSafetyDeadline,
     controlUnavailableSince: state.controlUnavailableSince,
     controlOfflineGraceSeconds: CONFIG.controlOfflineGraceSeconds,
   })) return;
   await proxyController.disable();
   await chrome.alarms.clear(STATUS_ALARM);
+  await chrome.alarms.clear(ACCESS_EXPIRY_ALARM);
   const next = await store.write({
     ...state,
     vpnEnabled: false,
@@ -460,6 +476,7 @@ async function enforceLocalSafetyDeadline() {
     connectionAttemptStartedAt: null,
     connectedAt: null,
     nextStatusCheckAt: 0,
+    accessSafetyDeadline: null,
   });
   await updateBadge(next);
 }
@@ -546,6 +563,7 @@ async function logout() {
   await reportVpnEvent("vpn_stopped").catch(() => undefined);
   await proxyController.disable();
   await chrome.alarms.clear(STATUS_ALARM);
+  await chrome.alarms.clear(ACCESS_EXPIRY_ALARM);
   authAttempts.clear();
   const reset = await store.reset({controlRateLimitedUntil});
   await updateBadge(reset);
@@ -582,6 +600,22 @@ async function scheduleStatusAlarm(delaySeconds) {
     Math.ceil(delaySeconds / 60),
   );
   await chrome.alarms.create(STATUS_ALARM, {delayInMinutes});
+}
+
+async function scheduleAccessExpiryAlarm(status) {
+  const localDeadline = calculateAccessSafetyDeadline(status);
+  if (localDeadline === null) {
+    await chrome.alarms.clear(ACCESS_EXPIRY_ALARM);
+    return;
+  }
+  await chrome.alarms.create(ACCESS_EXPIRY_ALARM, {when: localDeadline});
+}
+
+function calculateAccessSafetyDeadline(status) {
+  const expiry = Date.parse(status?.access?.access_expires_at || "");
+  const serverTime = Date.parse(status?.server_time || "");
+  if (!Number.isFinite(expiry) || !Number.isFinite(serverTime)) return null;
+  return Date.now() + Math.max(0, expiry - serverTime - 5_000);
 }
 
 function validateStatusBypass(status) {

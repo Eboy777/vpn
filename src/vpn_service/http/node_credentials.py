@@ -67,6 +67,7 @@ async def credentials_snapshot(request: Request, node_id: str) -> Response:
                 "proxy_username": item.proxy_username,
                 "proxy_password": item.proxy_password,
                 "valid_until": item.valid_until,
+                "bandwidth_limit_bytes_per_second": item.bandwidth_limit_bytes_per_second,
             }
             for item in result.credentials
         ],

@@ -4,7 +4,7 @@ import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -40,17 +40,31 @@ class SubscriptionReminderWorker:
                 await session.scalars(
                     select(User).where(
                         User.status == UserStatus.ACTIVE.value,
-                        User.subscription_expires_at > now,
-                        User.subscription_expires_at <= now + timedelta(days=3),
+                        or_(
+                            (
+                                (User.subscription_expires_at > now)
+                                & (User.subscription_expires_at <= now + timedelta(days=3))
+                            ),
+                            (
+                                (User.trial_expires_at > now)
+                                & (User.trial_expires_at <= now + timedelta(hours=1))
+                            ),
+                        ),
                     )
                 )
             ).all()
             inserted_count = 0
             for user in users:
-                assert user.subscription_expires_at is not None
-                remaining = user.subscription_expires_at - now
-                days = 1 if remaining <= timedelta(days=1) else 3
-                expiry_key = int(user.subscription_expires_at.timestamp())
+                paid_expiry = user.subscription_expires_at
+                if paid_expiry is not None and paid_expiry > now:
+                    expiry = paid_expiry
+                    stage = _paid_reminder_stage(expiry - now)
+                else:
+                    expiry = user.trial_expires_at
+                    stage = "1h" if expiry is not None and expiry > now else None
+                if expiry is None or stage is None:
+                    continue
+                expiry_key = int(expiry.timestamp())
                 inserted = (
                     await session.execute(
                         insert(OutboxEvent)
@@ -60,16 +74,13 @@ class SubscriptionReminderWorker:
                             aggregate_type="telegram_user",
                             aggregate_id=user.id,
                             idempotency_key=(
-                                f"telegram:subscription-expiry:{user.id}:{expiry_key}:{days}d"
+                                f"telegram:access-expiry:{user.id}:{expiry_key}:{stage}"
                             ),
                             payload_json={
                                 "method": "sendMessage",
                                 "params": {
                                     "chat_id": user.telegram_id,
-                                    "text": (
-                                        f"Подписка закончится через {days} "
-                                        f"{'день' if days == 1 else 'дня'}."
-                                    ),
+                                    "text": _reminder_text(stage),
                                     "reply_markup": {
                                         "inline_keyboard": [
                                             [
@@ -92,6 +103,26 @@ class SubscriptionReminderWorker:
                 ).scalar_one_or_none()
                 inserted_count += inserted is not None
             return inserted_count
+
+
+def _paid_reminder_stage(remaining: timedelta) -> str | None:
+    if remaining <= timedelta(hours=1):
+        return "1h"
+    if remaining <= timedelta(days=1):
+        return "1d"
+    if remaining <= timedelta(days=3):
+        return "3d"
+    return None
+
+
+def _reminder_text(stage: str) -> str:
+    if stage == "1h":
+        return (
+            "Доступ к VPN закончится менее чем через час. "
+            "Оплатите подписку, чтобы VPN продолжил работать без перерыва."
+        )
+    days = 1 if stage == "1d" else 3
+    return f"Подписка закончится через {days} {'день' if days == 1 else 'дня'}."
 
 
 async def _transaction_now(session: AsyncSession) -> datetime:

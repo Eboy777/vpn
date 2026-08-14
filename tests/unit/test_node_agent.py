@@ -25,6 +25,8 @@ def settings(tmp_path: Path, node_id: uuid.UUID) -> NodeAgentSettings:
         node_sync_state_path=tmp_path / "state.json",
         gost_config_path=tmp_path / "auth.txt",
         gost_config_staging_path=tmp_path / "auth.staging",
+        gost_account_limits_path=tmp_path / "account-limits.json",
+        gost_account_limits_staging_path=tmp_path / "account-limits.staging",
         gost_canary_proxy_username="canary_node_1",
         gost_canary_proxy_password="C" * 32,
         gost_canary_credential_version="v1",
@@ -40,6 +42,7 @@ def snapshot_body(node_id: uuid.UUID) -> tuple[dict[str, object], dict[str, str]
             "proxy_username": "u_" + "0" * 26,
             "proxy_password": "P" * 32,
             "valid_until": _format(credential_valid_until),
+            "bandwidth_limit_bytes_per_second": 5_000_000,
         }
     ]
     canonical = {"node_status": "active", "credentials": credentials}
@@ -127,6 +130,9 @@ async def test_agent_atomically_applies_snapshot_and_acknowledges(tmp_path: Path
     auth_file = config.gost_config_path.read_text()
     assert "canary_node_1 " + "C" * 32 in auth_file
     assert "u_" + "0" * 26 + " " + "P" * 32 in auth_file
+    assert json.loads(config.gost_account_limits_path.read_text()) == {
+        "u_" + "0" * 26: 5_000_000
+    }
     state = AtomicFiles(
         config.gost_config_path,
         config.gost_config_staging_path,

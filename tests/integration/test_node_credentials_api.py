@@ -182,6 +182,10 @@ async def test_snapshot_filters_sorts_and_supports_etag_and_idempotent_ack(
         trial_password,
         paid_password,
     ]
+    assert [item["bandwidth_limit_bytes_per_second"] for item in body["credentials"]] == [
+        5_000_000,
+        0,
+    ]
     assert response.headers["etag"] == f'"sha256:{body["revision"]}"'
     assert response.headers["x-snapshot-generated-at"] == body["generated_at"]
     assert response.headers["x-snapshot-valid-until"] == body["snapshot_valid_until"]

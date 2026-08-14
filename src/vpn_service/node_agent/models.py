@@ -15,6 +15,7 @@ class SnapshotCredential(StrictModel):
     proxy_username: Annotated[str, Field(pattern=r"^u_[a-z0-9]{26}$")]
     proxy_password: Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{32}$")]
     valid_until: datetime
+    bandwidth_limit_bytes_per_second: Annotated[int, Field(strict=True, ge=0, le=10**10)]
 
 
 class CredentialsSnapshot(StrictModel):

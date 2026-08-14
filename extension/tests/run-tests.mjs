@@ -21,7 +21,8 @@ const config = {
   statusAlarmMinutes: 1,
   controlOfflineGraceSeconds: 300,
   userAgreementUrl: "",
-  supportUrl: "",
+  telegramBotUrl: "https://t.me/example_vpn_bot",
+  telegramSupportUrl: "https://t.me/example_vpn_bot?start=support",
 };
 
 test("build config requires two distinct HTTPS origins", () => {
@@ -203,17 +204,19 @@ test("credentials are returned only for the exact current proxy challenge", () =
   }, proxy), false);
 });
 
-test("popup view never receives proxy credentials or device ID", () => {
+test("popup view receives account ID but never proxy credentials or device ID", () => {
   const state = initialState("00000000-0000-4000-8000-000000000001");
   state.deviceToken = "secret-device-token";
   state.vpnEnabled = true;
   state.currentProxy = {host: "proxy.test", port: 443, username: "u", password: "p"};
   state.status = {
+    account_id: 123456789,
     vpn: {credentials: {proxy_username: "u", proxy_password: "p"}},
   };
   const view = publicView(state);
   assert.equal(view.proxyActive, true);
   assert.equal("deviceId" in view, false);
+  assert.equal(view.status.account_id, 123456789);
   assert.equal("deviceToken" in view, false);
   assert.equal("credentials" in view.status.vpn, false);
 });
@@ -252,11 +255,17 @@ test("offline safety stops at the earliest grace or access deadline", () => {
     controlOfflineGraceSeconds: 300,
   }), true);
   assert.equal(shouldDisableProxy({
-    now: base + 60_000,
+    now: base + 55_000,
     accessExpiresAt: "2026-08-09T00:01:00Z",
     controlUnavailableSince: base,
     controlOfflineGraceSeconds: 300,
   }), true);
+  assert.equal(shouldDisableProxy({
+    now: base + 54_999,
+    accessExpiresAt: "2026-08-09T00:01:00Z",
+    controlUnavailableSince: null,
+    controlOfflineGraceSeconds: 300,
+  }), false);
 });
 
 test("bundled QR encoder produces a Version 5 matrix", () => {
@@ -276,8 +285,11 @@ test("popup follows the approved copy and privacy changes", async () => {
   const html = await readFile(new URL("../popup.html", import.meta.url), "utf8");
   const css = await readFile(new URL("../popup.css", import.meta.url), "utf8");
   const script = await readFile(new URL("../popup.js", import.meta.url), "utf8");
+  const configScript = await readFile(new URL("../src/config.js", import.meta.url), "utf8");
   assert.equal(html.includes("Unblock your digital world"), false);
   assert.equal(html.includes("Device ID"), false);
+  assert.equal(html.includes("<dt>Тема</dt>"), false);
+  assert.equal(html.includes('<dt>ID</dt><dd id="device-id">'), true);
   assert.equal(html.includes("Пользовательское соглашение"), true);
   assert.equal(html.includes("Выбрать сервер:"), true);
   assert.equal(html.includes("Virgo TRIP"), true);
@@ -285,6 +297,8 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(html.includes("149 ₽ / 15 дней"), true);
   assert.equal(html.includes("299 ₽ / 30 дней"), true);
   assert.equal(html.includes('src="assets/virgo-logo.png"'), true);
+  assert.equal(html.includes("v1.0.0"), false);
+  assert.equal(html.includes("brand-version"), false);
   assert.equal(css.includes("border: 1px solid rgba(255,255,255,.38)"), true);
   assert.equal(css.includes("border-radius: 0"), true);
   assert.equal(css.includes(".app-shell.scrollable"), true);
@@ -295,6 +309,10 @@ test("popup follows the approved copy and privacy changes", async () => {
   );
   assert.equal(script.includes('const serverAction = canSelectNode ? "locations" : "tariffs"'), true);
   assert.equal(script.includes("countryFlag(node?.country_code)"), true);
+  assert.equal(script.includes("BUILD_CONFIG.telegramBotUrl"), true);
+  assert.equal(script.includes("BUILD_CONFIG.telegramSupportUrl"), true);
+  assert.equal(configScript.includes("?start=support"), true);
+  assert.equal(css.includes(".renewal-button.renewal-quiet"), true);
 });
 
 test("manifest has only the required MV3 permissions and local popup code", async () => {

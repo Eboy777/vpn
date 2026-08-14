@@ -27,19 +27,34 @@ def render_auth_file(
 
 
 class AtomicFiles:
-    def __init__(self, active_path: Path, staging_path: Path, state_path: Path) -> None:
+    def __init__(
+        self,
+        active_path: Path,
+        staging_path: Path,
+        state_path: Path,
+        limits_path: Path | None = None,
+        limits_staging_path: Path | None = None,
+    ) -> None:
         self.active_path = active_path
         self.staging_path = staging_path
         self.state_path = state_path
         self.backup_path = active_path.with_name(active_path.name + ".last-good")
+        self.limits_path = limits_path
+        self.limits_staging_path = limits_staging_path
+        self.limits_backup_path = (
+            limits_path.with_name(limits_path.name + ".last-good") if limits_path else None
+        )
 
     def verify_same_filesystem(self) -> None:
         self.active_path.parent.mkdir(parents=True, exist_ok=True)
         self.staging_path.parent.mkdir(parents=True, exist_ok=True)
-        active_device = self.active_path.parent.stat().st_dev
-        staging_device = self.staging_path.parent.stat().st_dev
-        if active_device != staging_device:
-            raise RuntimeError("GOST active and staging paths must share a filesystem")
+        paths = [self.active_path, self.staging_path]
+        if self.limits_path is not None and self.limits_staging_path is not None:
+            paths.extend([self.limits_path, self.limits_staging_path])
+        for path in paths:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        if len({path.parent.stat().st_dev for path in paths}) != 1:
+            raise RuntimeError("GOST managed files must share a filesystem")
 
     def replace_auth(self, content: bytes) -> bytes | None:
         previous = self.active_path.read_bytes() if self.active_path.exists() else None
@@ -55,6 +70,25 @@ class AtomicFiles:
         self._atomic_write(self.staging_path, content, mode=AUTH_FILE_MODE)
         os.replace(self.staging_path, self.active_path)
         self._fsync_directory(self.active_path.parent)
+
+    def replace_limits(self, content: bytes) -> bytes | None:
+        if self.limits_path is None or self.limits_staging_path is None:
+            raise RuntimeError("GOST account limits path is not configured")
+        previous = self.limits_path.read_bytes() if self.limits_path.exists() else None
+        if previous is not None and self.limits_backup_path is not None:
+            self._atomic_write(self.limits_backup_path, previous, mode=AUTH_FILE_MODE)
+        self._atomic_write(self.limits_staging_path, content, mode=AUTH_FILE_MODE)
+        os.replace(self.limits_staging_path, self.limits_path)
+        self._fsync_directory(self.limits_path.parent)
+        return previous
+
+    def restore_limits(self, previous: bytes | None) -> None:
+        if self.limits_path is None or self.limits_staging_path is None:
+            raise RuntimeError("GOST account limits path is not configured")
+        content = previous if previous is not None else b"{}\n"
+        self._atomic_write(self.limits_staging_path, content, mode=AUTH_FILE_MODE)
+        os.replace(self.limits_staging_path, self.limits_path)
+        self._fsync_directory(self.limits_path.parent)
 
     def load_state(self) -> AgentState:
         if not self.state_path.exists():

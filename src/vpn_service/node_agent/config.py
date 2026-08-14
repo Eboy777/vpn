@@ -29,6 +29,8 @@ class NodeAgentSettings(BaseSettings):
     node_sync_state_path: Path
     gost_config_path: Path
     gost_config_staging_path: Path
+    gost_account_limits_path: Path = Path("/var/lib/vpn-node/account-limits.json")
+    gost_account_limits_staging_path: Path = Path("/var/lib/vpn-node/account-limits.staging")
     gost_canary_proxy_username: str
     gost_canary_proxy_password: SecretStr
     gost_canary_credential_version: str
@@ -59,11 +61,15 @@ class NodeAgentSettings(BaseSettings):
             ("NODE_SYNC_STATE_PATH", self.node_sync_state_path),
             ("GOST_CONFIG_PATH", self.gost_config_path),
             ("GOST_CONFIG_STAGING_PATH", self.gost_config_staging_path),
+            ("GOST_ACCOUNT_LIMITS_PATH", self.gost_account_limits_path),
+            ("GOST_ACCOUNT_LIMITS_STAGING_PATH", self.gost_account_limits_staging_path),
         ):
             if not path.is_absolute():
                 raise ValueError(f"{name} must be an absolute path")
         if self.gost_config_path == self.gost_config_staging_path:
             raise ValueError("GOST staging and active paths must differ")
+        if self.gost_account_limits_path == self.gost_account_limits_staging_path:
+            raise ValueError("GOST account limit staging and active paths must differ")
         if self.node_sync_timeout_seconds <= self.node_long_poll_wait_seconds:
             raise ValueError("node sync timeout must exceed long poll wait")
         return self
