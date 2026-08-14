@@ -59,9 +59,11 @@ class SubscriptionReminderWorker:
                 if paid_expiry is not None and paid_expiry > now:
                     expiry = paid_expiry
                     stage = _paid_reminder_stage(expiry - now)
+                    reminder_kind = "subscription"
                 else:
                     expiry = user.trial_expires_at
                     stage = "1h" if expiry is not None and expiry > now else None
+                    reminder_kind = "trial"
                 if expiry is None or stage is None:
                     continue
                 expiry_key = int(expiry.timestamp())
@@ -73,8 +75,11 @@ class SubscriptionReminderWorker:
                             event_type="telegram.call",
                             aggregate_type="telegram_user",
                             aggregate_id=user.id,
-                            idempotency_key=(
-                                f"telegram:access-expiry:{user.id}:{expiry_key}:{stage}"
+                            idempotency_key=_idempotency_key(
+                                user.id,
+                                expiry_key,
+                                stage,
+                                reminder_kind,
                             ),
                             payload_json={
                                 "method": "sendMessage",
@@ -123,6 +128,17 @@ def _reminder_text(stage: str) -> str:
         )
     days = 1 if stage == "1d" else 3
     return f"Подписка закончится через {days} {'день' if days == 1 else 'дня'}."
+
+
+def _idempotency_key(
+    user_id: uuid.UUID,
+    expiry_key: int,
+    stage: str,
+    reminder_kind: str,
+) -> str:
+    if reminder_kind == "subscription" and stage in {"1d", "3d"}:
+        return f"telegram:subscription-expiry:{user_id}:{expiry_key}:{stage}"
+    return f"telegram:access-expiry:{user_id}:{expiry_key}:{stage}"
 
 
 async def _transaction_now(session: AsyncSession) -> datetime:

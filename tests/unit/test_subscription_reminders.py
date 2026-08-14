@@ -1,6 +1,11 @@
+import uuid
 from datetime import timedelta
 
-from vpn_service.worker.subscription_reminders import _paid_reminder_stage, _reminder_text
+from vpn_service.worker.subscription_reminders import (
+    _idempotency_key,
+    _paid_reminder_stage,
+    _reminder_text,
+)
 
 
 def test_paid_reminder_stages_include_one_hour() -> None:
@@ -15,3 +20,14 @@ def test_one_hour_reminder_asks_user_to_pay() -> None:
 
     assert "менее чем через час" in text
     assert "Оплатите подписку" in text
+
+
+def test_existing_day_reminder_idempotency_keys_remain_compatible() -> None:
+    user_id = uuid.uuid4()
+
+    assert _idempotency_key(user_id, 123, "3d", "subscription") == (
+        f"telegram:subscription-expiry:{user_id}:123:3d"
+    )
+    assert _idempotency_key(user_id, 123, "1h", "trial") == (
+        f"telegram:access-expiry:{user_id}:123:1h"
+    )
