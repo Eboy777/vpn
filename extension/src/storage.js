@@ -22,6 +22,7 @@ export function initialState(deviceId = crypto.randomUUID()) {
     accessSafetyDeadline: null,
     discoveryDocument: null,
     discoveryRefreshAt: 0,
+    discoveryBootstrapKey: null,
     lastError: null,
   };
 }
@@ -53,6 +54,9 @@ export function createStateStore(storageArea = chrome.storage.local) {
           ? structuredClone(stored.discoveryDocument)
           : null,
         discoveryRefreshAt: Number(stored.discoveryRefreshAt) || 0,
+        discoveryBootstrapKey: typeof stored.discoveryBootstrapKey === "string"
+          ? stored.discoveryBootstrapKey
+          : null,
       };
     },
 
@@ -77,6 +81,7 @@ export function createStateStore(storageArea = chrome.storage.local) {
         controlRateLimitedUntil,
         discoveryDocument: current.discoveryDocument,
         discoveryRefreshAt: current.discoveryRefreshAt,
+        discoveryBootstrapKey: current.discoveryBootstrapKey,
         legalConsentVersion: current.legalConsentVersion,
         legalConsentAcceptedAt: current.legalConsentAcceptedAt,
       };

@@ -335,9 +335,8 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(html.includes("<dt>Тема</dt>"), false);
   assert.equal(html.includes('<dt>ID</dt><dd id="device-id">'), true);
   assert.equal(html.includes("Пользовательское соглашение"), true);
-  assert.equal(html.includes('id="pairing-consent"'), true);
-  assert.equal(html.includes('id="qr-consent-hint"'), false);
-  assert.equal(html.includes('class="qr-consent-hint"'), true);
+  assert.equal(html.includes('id="pairing-consent"'), false);
+  assert.equal(html.includes("Переходя по QR-коду или ссылке"), true);
   assert.equal(html.includes("/legal/personal-data-consent"), true);
   assert.equal(html.includes('id="telegram-link" href="#" aria-disabled="true"'), true);
   assert.equal(html.includes("Выбрать сервер:"), true);
@@ -386,6 +385,13 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(configScript.includes("https://api.virgo-vpn.site"), false);
   assert.equal(html.includes("https://api.virgo-vpn.site"), false);
   assert.equal(css.includes(".renewal-button.renewal-quiet"), true);
+});
+
+test("service worker invalidates discovery cached before control addresses changed", async () => {
+  const worker = await readFile(new URL("../service-worker.js", import.meta.url), "utf8");
+  assert.equal(worker.includes('state.discoveryBootstrapKey !== bootstrapKey'), true);
+  assert.equal(worker.includes('await applyControlUrls(CONFIG.controlUrls)'), true);
+  assert.equal(worker.includes('discoveryBootstrapKey: bootstrapKey'), true);
 });
 
 test("manifest has only the required MV3 permissions and local popup code", async () => {

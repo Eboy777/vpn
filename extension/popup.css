@@ -74,13 +74,9 @@ button { color: inherit; }
 .pairing h1 { margin: 5px 0 10px; font-size: 25px; }
 .qr-card { position: relative; display: grid; width: 208px; height: 208px; margin: 0 auto 8px; padding: 11px; place-items: center; overflow: hidden; border-radius: 20px; background: white; }
 .qr-card svg { display: block; width: 100%; height: 100%; }
-.qr-card:not(.consent-confirmed) svg { opacity: .08; filter: blur(3px); }
-.qr-consent-hint { position: absolute; width: 150px; color: #3f3f3f; font-size: 11px; font-weight: 750; line-height: 1.35; }
-.qr-card.consent-confirmed .qr-consent-hint { display: none; }
 .pairing p { margin: 0 auto 7px; color: #ddd; font-size: 12.5px; line-height: 1.4; }
-.pairing-consent-row { display: grid; grid-template-columns: 15px minmax(0, 1fr); gap: 6px; align-items: start; margin: 0 3px 9px; color: #c9c9c9; font-size: 9.2px; line-height: 1.35; text-align: left; cursor: pointer; }
-.pairing-consent-row input { width: 13px; height: 13px; margin: 0; accent-color: #ff2936; }
-.pairing-consent-row a { color: #e1e1e1; text-underline-offset: 2px; }
+.pairing .pairing-legal-note { margin: 1px 5px 10px; color: #d3d3d3; font-size: 11px; line-height: 1.4; text-align: left; }
+.pairing-legal-note a { color: #ededed; text-underline-offset: 2px; }
 .link-button { min-height: 45px; }
 .link-button[aria-disabled="true"] { background: #b8b8b8; color: #555; cursor: default; opacity: .6; }
 .text-button { margin-top: 8px; border: 0; background: transparent; color: #ddd; text-decoration: underline; cursor: pointer; }

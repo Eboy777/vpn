@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Virgo VPN</title>
-    <link rel="stylesheet" href="popup.css?v=20260815-3">
+    <link rel="stylesheet" href="popup.css?v=20260816-1">
   </head>
   <body>
     <main class="app-shell">
@@ -37,15 +37,11 @@
 
       <section class="screen pairing" data-screen="pairing" hidden>
         <h1>QR-код для быстрого входа</h1>
-        <div class="qr-card" id="qr-card">
+        <div class="qr-card">
           <svg id="telegram-qr" xmlns="http://www.w3.org/2000/svg"></svg>
-          <span class="qr-consent-hint">Подтвердите согласие, чтобы открыть QR-код</span>
         </div>
         <p>Наведите камеру на QR-код и нажмите Start в Telegram-боте.</p>
-        <label class="pairing-consent-row" for="pairing-consent">
-          <input id="pairing-consent" type="checkbox">
-          <span>Принимаю <a href="https://proxy1.virgo-vpn.site/legal/user-agreement" target="_blank" rel="noreferrer">соглашение</a>, <a href="https://proxy1.virgo-vpn.site/legal/privacy-policy" target="_blank" rel="noreferrer">политику</a> и <a href="https://proxy1.virgo-vpn.site/legal/personal-data-consent" target="_blank" rel="noreferrer">обработку данных</a>.</span>
-        </label>
+        <p class="pairing-legal-note">Переходя по QR-коду или ссылке, вы подтверждаете согласие с <a href="https://proxy1.virgo-vpn.site/legal/user-agreement" target="_blank" rel="noreferrer">пользовательским соглашением</a>, <a href="https://proxy1.virgo-vpn.site/legal/privacy-policy" target="_blank" rel="noreferrer">политикой конфиденциальности</a> и <a href="https://proxy1.virgo-vpn.site/legal/personal-data-consent" target="_blank" rel="noreferrer">обработкой данных</a>.</p>
         <a class="primary-button link-button" id="telegram-link" href="#" aria-disabled="true" target="_blank" rel="noreferrer">Открыть Telegram</a>
         <button class="text-button" data-action="restart-pairing" type="button">Создать новую ссылку</button>
       </section>
@@ -186,6 +182,6 @@
         </form>
       </dialog>
     </main>
-    <script type="module" src="popup.js"></script>
+    <script type="module" src="popup.js?v=20260816-1"></script>
   </body>
 </html>

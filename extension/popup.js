@@ -6,9 +6,7 @@ const appShell = document.querySelector(".app-shell");
 const notice = document.querySelector("#notice");
 const iconNav = document.querySelector("#icon-nav");
 const agreementLink = document.querySelector("#agreement-link");
-const pairingConsent = document.querySelector("#pairing-consent");
 const telegramLink = document.querySelector("#telegram-link");
-const qrCard = document.querySelector("#qr-card");
 let viewModel = null;
 let currentScreen = "dashboard";
 let pairingTimer = null;
@@ -34,15 +32,15 @@ agreementLink.addEventListener("click", (event) => {
 telegramLink.addEventListener("click", (event) => {
   if (telegramLink.getAttribute("aria-disabled") === "true") {
     event.preventDefault();
-    showNotice("Сначала примите соглашение и политику конфиденциальности.");
+    return;
   }
-});
-
-pairingConsent.addEventListener("change", () => {
-  if (!pairingConsent.checked || viewModel?.legalConsentAccepted) return;
+  event.preventDefault();
+  const telegramUrl = telegramLink.href;
   void runBusy(async () => {
-    viewModel = await send("ACCEPT_LEGAL", {version: "2026-08-15"});
-    viewModel = await send("START_PAIRING");
+    if (!viewModel.legalConsentAccepted) {
+      viewModel = await send("ACCEPT_LEGAL", {version: "2026-08-15"});
+    }
+    await openExternal(telegramUrl);
     render();
   });
 });
@@ -156,13 +154,12 @@ async function act(action, actionElement = null) {
     }
     case "start-pairing":
       currentScreen = "pairing";
-      render();
+      await runBusy(async () => {
+        viewModel = await send("START_PAIRING");
+        render();
+      });
       return;
     case "restart-pairing":
-      if (!viewModel.legalConsentAccepted) {
-        showNotice("Сначала примите соглашение и политику конфиденциальности.");
-        return;
-      }
       await runBusy(async () => {
         viewModel = await send("START_PAIRING");
         render();
@@ -245,12 +242,8 @@ function render() {
 
 function renderPairing() {
   const pairing = viewModel.pairing;
-  const accepted = Boolean(viewModel.legalConsentAccepted);
-  pairingConsent.checked = accepted;
-  pairingConsent.disabled = accepted;
-  qrCard.classList.toggle("consent-confirmed", accepted && Boolean(pairing));
-  telegramLink.href = accepted && pairing ? pairing.telegramUrl : "#";
-  telegramLink.setAttribute("aria-disabled", String(!accepted || !pairing));
+  telegramLink.href = pairing ? pairing.telegramUrl : "#";
+  telegramLink.setAttribute("aria-disabled", String(!pairing));
   if (!pairing) {
     document.querySelector("#telegram-qr").replaceChildren();
     return;
@@ -411,7 +404,7 @@ function previewResponse(type, payload) {
   const preview = new URLSearchParams(location.search).get("preview") || "onboarding";
   if (type === "GET_VIEW") return previewModel(preview);
   if (type === "ACCEPT_LEGAL") return {...viewModel, legalConsentAccepted: true};
-  if (type === "START_PAIRING") return {...previewModel("pairing"), legalConsentAccepted: true};
+  if (type === "START_PAIRING") return previewModel("pairing");
   if (type === "POLL_PAIRING") return previewModel("main");
   if (type === "SET_VPN") {
     const model = previewModel("main");

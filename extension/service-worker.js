@@ -211,9 +211,6 @@ async function acceptLegalConsent(version) {
 
 async function startPairing() {
   let state = await store.read();
-  if (!state.legalConsentVersion || !state.legalConsentAcceptedAt) {
-    throw new Error("Сначала примите соглашение и политику конфиденциальности");
-  }
   await refreshDiscoveryIfDue().catch(() => undefined);
   if (state.deviceToken) return;
   const initialized = await initializePairingWithRecovery(api, store);
@@ -257,6 +254,9 @@ async function pollPairing() {
     pairing: null,
     lastError: null,
   });
+  if (!state.legalConsentVersion || !state.legalConsentAcceptedAt) {
+    await acceptLegalConsent(LEGAL_CONSENT_VERSION);
+  }
   await refreshStatus({force: true});
 }
 
@@ -446,7 +446,16 @@ async function refreshDiscoveryIfDue() {
 async function performDiscoveryRefresh() {
   let state = await store.read();
   let previousGeneratedAt = 0;
-  if (state.discoveryDocument) {
+  const bootstrapKey = CONFIG.controlUrls.join("\n");
+  if (state.discoveryBootstrapKey !== bootstrapKey) {
+    await applyControlUrls(CONFIG.controlUrls);
+    state = await store.update((current) => ({
+      ...current,
+      discoveryDocument: null,
+      discoveryRefreshAt: 0,
+      discoveryBootstrapKey: bootstrapKey,
+    }));
+  } else if (state.discoveryDocument) {
     try {
       const cached = await verifyDiscoveryDocument(
         state.discoveryDocument,
@@ -487,6 +496,7 @@ async function performDiscoveryRefresh() {
     ...current,
     discoveryDocument: verified,
     discoveryRefreshAt: refreshAt,
+    discoveryBootstrapKey: bootstrapKey,
   }));
 }
 
