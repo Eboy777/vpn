@@ -213,7 +213,7 @@ async def test_payment_and_outbox_invariants(
             Payment(
                 user_id=user.id,
                 invoice_id=uuid.uuid4().hex,
-                tariff_code="vpn_30d",
+                tariff_code="flow_1m",
                 amount_minor=-1,
                 period_days=30,
                 idempotency_key=str(uuid.uuid4()),

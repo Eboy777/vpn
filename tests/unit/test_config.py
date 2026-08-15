@@ -44,11 +44,11 @@ def test_accepts_tariff_characteristics_from_configuration(
     settings_factory: Callable[..., Settings],
 ) -> None:
     tariffs = deepcopy(TARIFFS)
-    tariffs["vpn_30d"]["amount_minor"] = 30_000
+    tariffs["flow_1m"]["amount_minor"] = 30_000
 
     settings = settings_factory(tariffs_json=tariffs)
 
-    assert settings.tariffs_json["vpn_30d"].amount_minor == 30_000
+    assert settings.tariffs_json["flow_1m"].amount_minor == 30_000
 
 
 def test_rejects_empty_tariff_catalog(settings_factory: Callable[..., Settings]) -> None:

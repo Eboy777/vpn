@@ -33,7 +33,7 @@ async def test_lava_creates_invoice_without_exposing_api_key(
     settings = settings_factory(lava_api_key="lava-secret")
     client = LavaClient(settings, transport=httpx.MockTransport(handler))
     invoice = await client.create_invoice(
-        offer_id=uuid.UUID("d6a4c96c-157f-44fc-b175-dbb9026bde60"),
+        offer_id=uuid.UUID("bdac8131-ef34-488b-8b94-5da4480ecf5b"),
         currency="RUB",
         periodicity="MONTHLY",
         email="client@example.com",
@@ -44,7 +44,7 @@ async def test_lava_creates_invoice_without_exposing_api_key(
     assert captured["api_key"] == "lava-secret"
     assert captured["body"] == {
         "email": "client@example.com",
-        "offerId": "d6a4c96c-157f-44fc-b175-dbb9026bde60",
+        "offerId": "bdac8131-ef34-488b-8b94-5da4480ecf5b",
         "currency": "RUB",
         "periodicity": "MONTHLY",
         "buyerLanguage": "RU",
@@ -73,7 +73,7 @@ async def test_lava_rejects_non_https_payment_url(
 
     with pytest.raises(LavaError, match="invalid invoice response"):
         await client.create_invoice(
-            offer_id=uuid.UUID("d6a4c96c-157f-44fc-b175-dbb9026bde60"),
+            offer_id=uuid.UUID("bdac8131-ef34-488b-8b94-5da4480ecf5b"),
             currency="RUB",
             periodicity="MONTHLY",
             email="client@example.com",

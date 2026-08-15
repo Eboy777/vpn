@@ -645,8 +645,6 @@ def _callback_uuid(data: str, prefix: str) -> uuid.UUID | None:
 
 def tariff_name(code: str) -> str:
     names = {
-        "vpn_15d": "Virgo TRIP",
-        "vpn_30d": "Тестовый тариф Lava",
         "flow_1m": "Virgo FLOW · 1 месяц",
         "flow_3m": "Virgo FLOW · 3 месяца",
         "flow_6m": "Virgo FLOW · 6 месяцев",
@@ -681,12 +679,6 @@ def tariffs_text(settings: Settings) -> str:
             "• Максимальная скорость и выделенные линии\n"
             "• Автовыбор лучшего сервера\n\n" + _tariff_price_lines(settings, "space")
         )
-    test_tariff = settings.tariffs_json.get("vpn_30d")
-    if test_tariff is not None and test_tariff.enabled:
-        sections.append(
-            "\n🧪 Тестовый тариф Lava\n"
-            "Только для технической проверки платежей, не публичный тариф."
-        )
     return "\n".join(sections)
 
 
@@ -708,14 +700,13 @@ def tariffs_keyboard(settings: Settings) -> dict[str, Any]:
         "space_1m",
         "space_3m",
         "space_6m",
-        "vpn_30d",
     )
     rows = []
     for code in order:
         tariff = settings.tariffs_json.get(code)
         if tariff is None or not tariff.enabled:
             continue
-        icon = "🧪" if code == "vpn_30d" else "⚡️" if code.startswith("flow") else "🚀"
+        icon = "⚡️" if code.startswith("flow") else "🚀"
         rows.append(
             [
                 {
@@ -1123,7 +1114,7 @@ def _edit_payment_placeholder(
         chat_id,
         message_id,
         f"Оплата тарифа {title} ({price}) пока отключена. "
-        "Ссылка появится после подключения тестового эквайринга.",
+        "Попробуйте позже или обратитесь в поддержку.",
         {"inline_keyboard": [[{"text": "◀️ Назад", "callback_data": "menu:tariffs"}]]},
     )
 

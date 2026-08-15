@@ -73,15 +73,6 @@ TARIFFS = {
         "enabled": True,
         "description": "Virgo SPACE на 6 месяцев",
     },
-    "vpn_30d": {
-        "amount_minor": 29_900,
-        "period_days": 30,
-        "device_limit": 5,
-        "currency": "RUB",
-        "enabled": True,
-        "test_only": True,
-        "description": "Технический тестовый тариф Lava",
-    },
 }
 
 

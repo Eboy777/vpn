@@ -29,13 +29,13 @@ class FakeAuthenticator:
 
 class FakePayments:
     async def create(self, **kwargs):
-        assert kwargs["tariff_code"] == "vpn_30d"
+        assert kwargs["tariff_code"] == "flow_1m"
         assert kwargs["terms_accepted"] is True
         return PaymentCreateResult(
             payment_id=uuid.UUID("00000000-0000-4000-8000-000000000004"),
             contract_id="7ea82675-4ded-4133-95a7-a6efbaf165cc",
             payment_url="https://app.lava.top/payment/test",
-            tariff_code="vpn_30d",
+            tariff_code="flow_1m",
             amount_minor=29_900,
             currency="RUB",
             periodicity="MONTHLY",
@@ -75,7 +75,7 @@ async def test_create_payment_contract(payment_client: httpx.AsyncClient) -> Non
             "Idempotency-Key": "test-payment-key-0001",
         },
         json={
-            "tariff_code": "vpn_30d",
+            "tariff_code": "flow_1m",
             "email": "client@example.com",
             "terms_accepted": True,
             "recurring_consent": True,

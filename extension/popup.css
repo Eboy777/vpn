@@ -147,10 +147,6 @@ button { color: inherit; }
 .discount-badge { position: absolute; z-index: 1; top: -6px; right: -3px; display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: #ffe000; color: #171717; font-size: 7px; font-style: normal; font-weight: 900; box-shadow: 0 3px 8px rgba(0,0,0,.2); }
 .tariff-select-button { min-height: 40px; margin-top: 9px; padding: 9px 13px; border-radius: 14px; font-size: 12px; box-shadow: 0 7px 16px rgba(252,36,43,.15); }
 .space-panel .tariff-select-button { background: linear-gradient(90deg, #ff242d, #ff4850); }
-.test-tariff-card { margin-top: 7px; padding: 8px 11px; border: 1px dashed #5d5d5d; border-radius: 14px; background: rgba(10,10,10,.42); color: #cfcfcf; text-align: left; }
-.test-tariff-card summary { cursor: pointer; font-size: 9.5px; font-weight: 800; }
-.test-tariff-card p { margin: 10px 0; color: #aaa; font-size: 11px; line-height: 1.4; }
-.test-payment-button { min-height: 42px; margin-top: 0; border-radius: 14px; font-size: 12px; }
 .payment-consents { margin-top: 8px; padding: 1px 1px 0; color: #c9c9c9; font-size: 8.5px; line-height: 1.3; text-align: left; }
 .consent-row { display: grid; grid-template-columns: 15px minmax(0, 1fr); gap: 6px; align-items: start; cursor: pointer; }
 .payment-consents input { width: 13px; height: 13px; margin: 0; accent-color: #ff2936; cursor: pointer; }

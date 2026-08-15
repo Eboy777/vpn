@@ -70,7 +70,7 @@ class PaymentService:
         offer = self._settings.lava_offers_json.get(tariff_code)
         if tariff is None or not tariff.enabled or offer is None:
             raise ApplicationError(409, "TARIFF_UNAVAILABLE", "Tariff is unavailable")
-        if not self._settings.payments_production_enabled and not tariff.test_only:
+        if not self._settings.payments_production_enabled:
             raise ApplicationError(
                 409,
                 "PAYMENTS_NOT_LAUNCHED",

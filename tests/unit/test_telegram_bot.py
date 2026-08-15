@@ -84,10 +84,10 @@ def test_bot_copy_and_keyboards_follow_the_approved_scenarios(
     assert "3 месяца — 499 ₽" in tariffs_text(settings)
     assert "Virgo SPACE — рекомендуем" in tariffs_text(settings)
     assert "6 месяцев — 1 499 ₽" in tariffs_text(settings)
-    assert "Тестовый тариф Lava" in tariffs_text(settings)
+    assert "Тестовый тариф Lava" not in tariffs_text(settings)
     assert tariff_price(settings.tariffs_json["flow_1m"]) == "299 ₽"
     assert tariff_price(settings.tariffs_json["space_6m"]) == "1 499 ₽"
-    assert len(tariffs_keyboard(settings)["inline_keyboard"]) == 8
+    assert len(tariffs_keyboard(settings)["inline_keyboard"]) == 7
     assert tariffs_keyboard(settings)["inline_keyboard"][-1][0]["callback_data"] == ("menu:profile")
     assert welcome_text(settings).startswith("Привет! 🛰\n\nДобро пожаловать в Virgo VPN")
     assert "Служба поддержки Virgo VPN" in support_text()

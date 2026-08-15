@@ -330,7 +330,8 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(html.includes("Virgo SPACE"), true);
   assert.equal(html.includes("299 ₽"), true);
   assert.equal(html.includes("1 499 ₽"), true);
-  assert.equal(html.includes("Тестовый тариф Lava"), true);
+  assert.equal(html.includes("Тестовый тариф Lava"), false);
+  assert.equal(html.includes("vpn_30d"), false);
   assert.equal(html.includes('data-tariff-code="flow_3m"'), true);
   assert.equal(html.includes('data-tariff-code="space_6m"'), true);
   assert.equal(html.includes('src="assets/virgo-logo.png"'), true);

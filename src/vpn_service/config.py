@@ -38,7 +38,6 @@ class TariffSettings(BaseModel):
     device_limit: Annotated[int, Field(ge=1, le=10)]
     currency: Literal["RUB"]
     enabled: bool
-    test_only: bool = False
     description: Annotated[str, Field(min_length=1, max_length=100)]
 
 
