@@ -78,3 +78,28 @@ async def test_lava_rejects_non_https_payment_url(
             periodicity="MONTHLY",
             email="client@example.com",
         )
+
+
+@pytest.mark.asyncio
+async def test_lava_normalizes_uppercase_invoice_status(
+    settings_factory: Callable[..., Settings],
+) -> None:
+    transport = httpx.MockTransport(
+        lambda _request: httpx.Response(
+            200,
+            json={
+                "id": "7ea82675-4ded-4133-95a7-a6efbaf165cc",
+                "status": "COMPLETED",
+                "receipt": {"currency": "RUB", "amount": 299},
+                "product": {"offer": "Virgo FLOW"},
+            },
+        )
+    )
+    client = LavaClient(
+        settings_factory(lava_api_key="lava-secret"),
+        transport=transport,
+    )
+
+    invoice = await client.invoice("7ea82675-4ded-4133-95a7-a6efbaf165cc")
+
+    assert invoice.status == "completed"

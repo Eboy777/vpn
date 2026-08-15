@@ -22,6 +22,7 @@ from vpn_service.security.tokens import TokenHasher
 
 _SUCCESS_EVENTS = {"payment.success", "subscription.recurring.payment.success"}
 _FAILED_EVENTS = {"payment.failed", "subscription.recurring.payment.failed"}
+_REPLAYABLE_WEBHOOK_RESULTS = {"provider_mismatch"}
 _CONSENT_VERSION = "2026-08-15"
 
 
@@ -186,7 +187,16 @@ class PaymentService:
                 )
             ).scalar_one_or_none()
             if inserted is None:
-                return WebhookResult("duplicate")
+                event = await session.scalar(
+                    select(PaymentWebhookEvent)
+                    .where(PaymentWebhookEvent.body_hash == body_hash)
+                    .with_for_update()
+                )
+                if event is None or event.result_code not in _REPLAYABLE_WEBHOOK_RESULTS:
+                    return WebhookResult("duplicate")
+                result_code = await self._apply_webhook(session, payload=payload, now=now)
+                event.result_code = result_code
+                return WebhookResult(result_code)
             result_code = await self._apply_webhook(session, payload=payload, now=now)
             event = await session.get(PaymentWebhookEvent, event_id)
             assert event is not None

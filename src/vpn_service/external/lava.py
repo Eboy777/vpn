@@ -68,7 +68,7 @@ class LavaClient:
         data = await self._request("POST", "/api/v3/invoice", json=payload)
         try:
             contract_id = str(uuid.UUID(_required_string(data, "id")))
-            status = _required_string(data, "status")
+            status = _required_string(data, "status").lower()
             amount_total = data["amountTotal"]
             if not isinstance(amount_total, dict):
                 raise ValueError
@@ -96,7 +96,7 @@ class LavaClient:
         data = await self._request("GET", f"/api/v2/invoices/{canonical_id}")
         try:
             response_id = str(uuid.UUID(_required_string(data, "id")))
-            status = _required_string(data, "status")
+            status = _required_string(data, "status").lower()
             receipt = data["receipt"]
             if not isinstance(receipt, dict):
                 raise ValueError

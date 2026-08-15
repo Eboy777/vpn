@@ -2,8 +2,8 @@
 // PUBLIC_CONTROL_URLS_JSON in their intended failover order.
 export const BUILD_CONFIG = Object.freeze({
   controlUrls: Object.freeze([
-    "https://invalid-control.virgo-vpn.site",
-    "https://api.virgo-vpn.site",
+    "https://proxy1.virgo-vpn.site",
+    "https://proxy2.virgo-vpn.site",
   ]),
   discoveryPublicKeys: Object.freeze({
     v1: "BCyntUK8FshqXbTTN-Xg29En0nUhlwMrtJuv7Dkg6G50wwEIFcpx8vhPQZDAlDsF0Ut1ReiabuWOkh_7G2fQKco",
@@ -14,7 +14,7 @@ export const BUILD_CONFIG = Object.freeze({
   fallbackDelayMs: 250,
   statusAlarmMinutes: 1,
   controlOfflineGraceSeconds: 300,
-  userAgreementUrl: "https://api.virgo-vpn.site/legal/user-agreement",
+  userAgreementUrl: "https://proxy1.virgo-vpn.site/legal/user-agreement",
   telegramBotUrl: "https://t.me/virgo1vpn_bot",
   telegramSupportUrl: "https://t.me/virgo1vpn_bot?start=support",
 });

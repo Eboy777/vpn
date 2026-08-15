@@ -363,6 +363,10 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(script.includes('case "select-plan"'), true);
   assert.equal(script.includes('case "select-period"'), true);
   assert.equal(configScript.includes("?start=support"), true);
+  assert.equal(configScript.includes("https://proxy1.virgo-vpn.site"), true);
+  assert.equal(configScript.includes("https://proxy2.virgo-vpn.site"), true);
+  assert.equal(configScript.includes("https://api.virgo-vpn.site"), false);
+  assert.equal(html.includes("https://api.virgo-vpn.site"), false);
   assert.equal(css.includes(".renewal-button.renewal-quiet"), true);
 });
 
