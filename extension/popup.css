@@ -69,13 +69,13 @@ button { color: inherit; }
 .logout-button { border: 1px solid #ff292f; background: rgba(255,255,255,.2); color: #ff9295; }
 .small-copy { margin: 15px 12px 0; color: #ddd; font-size: 13px; line-height: 1.45; }
 
-.pairing { padding-top: 7px; text-align: center; }
+.pairing { display: flex; min-height: 493px; flex-direction: column; padding-top: 7px; text-align: center; }
 .pairing h1, .tariffs h1, .settings h1 { margin: 10px 0 18px; font-size: 28px; line-height: 1.08; }
 .pairing h1 { margin: 5px 0 10px; font-size: 25px; }
 .qr-card { position: relative; display: grid; width: 208px; height: 208px; margin: 0 auto 8px; padding: 11px; place-items: center; overflow: hidden; border-radius: 20px; background: white; }
 .qr-card svg { display: block; width: 100%; height: 100%; }
 .pairing p { margin: 0 auto 7px; color: #ddd; font-size: 12.5px; line-height: 1.4; }
-.pairing .pairing-legal-note { margin: 1px 5px 10px; color: #d3d3d3; font-size: 11px; line-height: 1.4; text-align: left; }
+.pairing .pairing-legal-note { position: absolute; right: 24px; bottom: 5px; left: 24px; margin: 0; color: #d3d3d3; font-size: 11px; line-height: 1.4; text-align: left; }
 .pairing-legal-note a { color: #ededed; text-underline-offset: 2px; }
 .link-button { min-height: 45px; }
 .link-button[aria-disabled="true"] { background: #b8b8b8; color: #555; cursor: default; opacity: .6; }
