@@ -11,6 +11,7 @@ import {
 import {encodeTelegramQr} from "../src/qr.js";
 import {shouldDisableProxy} from "../src/safety.js";
 import {initialState, publicView} from "../src/storage.js";
+import {initializePairingWithRecovery} from "../src/pairing-recovery.js";
 
 const tests = [];
 const test = (name, implementation) => tests.push([name, implementation]);
@@ -154,6 +155,39 @@ test("ordinary 4xx response does not use fallback", async () => {
   });
   await assert.rejects(() => client.status("x".repeat(43)), {code: "INVALID_DEVICE_TOKEN"});
   assert.equal(calls, 1);
+});
+
+test("stale paired device identity is rotated before a new Telegram pairing", async () => {
+  const firstState = initialState("00000000-0000-4000-8000-000000000001");
+  const secondState = initialState("00000000-0000-4000-8000-000000000002");
+  const calls = [];
+  let resetCalls = 0;
+  const store = {
+    read: async () => firstState,
+    reset: async () => {
+      resetCalls += 1;
+      return secondState;
+    },
+  };
+  const api = {
+    pairingInit: async (deviceId) => {
+      calls.push(deviceId);
+      if (calls.length === 1) {
+        throw new ControlApiError("already paired", {
+          status: 409,
+          code: "DEVICE_ALREADY_PAIRED",
+        });
+      }
+      return {pairing_session_token: "new-session"};
+    },
+  };
+
+  const initialized = await initializePairingWithRecovery(api, store);
+
+  assert.equal(resetCalls, 1);
+  assert.deepEqual(calls, [firstState.deviceId, secondState.deviceId]);
+  assert.equal(initialized.state.deviceId, secondState.deviceId);
+  assert.equal(initialized.result.pairing_session_token, "new-session");
 });
 
 test("proxy uses HTTPS singleProxy and preserves the API bypass list", async () => {

@@ -8,6 +8,7 @@ import {
 } from "./src/proxy-controller.js";
 import {createStateStore, publicView} from "./src/storage.js";
 import {shouldDisableProxy} from "./src/safety.js";
+import {initializePairingWithRecovery} from "./src/pairing-recovery.js";
 
 const CONFIG = validateBuildConfig(BUILD_CONFIG);
 const STATUS_ALARM = "virgo-status-refresh";
@@ -178,9 +179,11 @@ async function view() {
 
 async function startPairing() {
   await refreshDiscoveryIfDue().catch(() => undefined);
-  const state = await store.read();
+  let state = await store.read();
   if (state.deviceToken) return;
-  const result = await api.pairingInit(state.deviceId);
+  const initialized = await initializePairingWithRecovery(api, store);
+  state = initialized.state;
+  const result = initialized.result;
   await store.write({
     ...state,
     pairing: {
