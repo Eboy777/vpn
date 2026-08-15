@@ -56,7 +56,7 @@ class LavaClient:
         offer_id: uuid.UUID,
         currency: str,
         periodicity: str,
-        email: str | None,
+        email: str,
     ) -> CreatedLavaInvoice:
         payload: dict[str, Any] = {
             "offerId": str(offer_id),
@@ -64,8 +64,7 @@ class LavaClient:
             "periodicity": periodicity,
             "buyerLanguage": "RU",
         }
-        if email is not None:
-            payload["email"] = email
+        payload["email"] = email
         data = await self._request("POST", "/api/v3/invoice", json=payload)
         try:
             contract_id = str(uuid.UUID(_required_string(data, "id")))

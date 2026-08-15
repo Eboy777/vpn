@@ -147,6 +147,7 @@ async function handleMessage(message) {
       return getNodes();
     case "CREATE_PAYMENT":
       return createPayment(message.tariffCode, {
+        email: message.email,
         termsAccepted: message.termsAccepted,
         recurringConsent: message.recurringConsent,
       });
@@ -162,11 +163,12 @@ async function handleMessage(message) {
   }
 }
 
-async function createPayment(tariffCode, {termsAccepted, recurringConsent}) {
+async function createPayment(tariffCode, {email, termsAccepted, recurringConsent}) {
   const state = await store.read();
   if (!state.deviceToken) throw new Error("Сначала привяжите Telegram");
   if (!termsAccepted) throw new Error("Примите пользовательское соглашение");
   return api.createPayment(state.deviceToken, tariffCode, {
+    email,
     termsAccepted: Boolean(termsAccepted),
     recurringConsent: Boolean(recurringConsent),
   });
@@ -659,6 +661,8 @@ function userFacingError(error) {
       NO_ACTIVE_NODE: "Сейчас нет доступных VPN-серверов.",
       PAIRING_EXPIRED: "Время привязки истекло. Начните заново.",
       RATE_LIMITED: "Слишком много запросов. Попробуйте чуть позже.",
+      PAYMENTS_NOT_LAUNCHED: "Оплата выбранного тарифа пока выключена.",
+      PAYMENT_PROVIDER_UNAVAILABLE: "Lava временно не смогла создать ссылку. Попробуйте ещё раз.",
       USER_BLOCKED: "Доступ к аккаунту заблокирован.",
     };
     return messages[error.code] || "Не удалось связаться с Virgo. Повторите попытку.";

@@ -76,7 +76,7 @@ async def test_create_payment_contract(payment_client: httpx.AsyncClient) -> Non
         },
         json={
             "tariff_code": "vpn_30d",
-            "email": None,
+            "email": "client@example.com",
             "terms_accepted": True,
             "recurring_consent": True,
         },

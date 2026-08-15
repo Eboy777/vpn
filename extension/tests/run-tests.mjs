@@ -341,7 +341,7 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(css.includes(".app-shell.scrollable"), true);
   assert.equal(css.includes("justify-content: flex-end"), true);
   assert.equal(
-    script.includes('appShell.classList.toggle("scrollable", ["tariffs", "locations"].includes(screen))'),
+    script.includes('appShell.classList.toggle("scrollable", screen === "locations")'),
     true,
   );
   assert.equal(script.includes('const serverAction = canSelectNode ? "locations" : "tariffs"'), true);
@@ -352,6 +352,9 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(script.includes("Поставьте галочку согласия с политикой конфиденциальности"), true);
   assert.equal(html.includes('class="consent-row"'), true);
   assert.equal(html.includes('id="payment-consent"'), true);
+  assert.equal(html.includes('id="payment-email-dialog"'), true);
+  assert.equal(html.includes('id="payment-email"'), true);
+  assert.equal(script.includes("const email = await requestPaymentEmail()"), true);
   assert.equal(html.includes('id="payment-terms"'), false);
   assert.equal(html.includes('id="payment-recurring"'), false);
   assert.equal(html.includes('class="plan-notification"'), true);

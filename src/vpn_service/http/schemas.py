@@ -14,15 +14,13 @@ class StrictRequest(BaseModel):
 
 class PaymentCreateRequest(StrictRequest):
     tariff_code: Annotated[str, Field(pattern=r"^[a-z0-9_]{1,64}$")]
-    email: Annotated[str, Field(min_length=3, max_length=320)] | None = None
+    email: Annotated[str, Field(min_length=3, max_length=320)]
     terms_accepted: bool
     recurring_consent: bool
 
     @field_validator("email")
     @classmethod
-    def basic_email_format(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
+    def basic_email_format(cls, value: str) -> str:
         normalized = value.strip().lower()
         if normalized.count("@") != 1 or any(character.isspace() for character in normalized):
             raise ValueError("email has an invalid format")

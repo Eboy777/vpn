@@ -36,13 +36,14 @@ async def test_lava_creates_invoice_without_exposing_api_key(
         offer_id=uuid.UUID("d6a4c96c-157f-44fc-b175-dbb9026bde60"),
         currency="RUB",
         periodicity="MONTHLY",
-        email=None,
+        email="client@example.com",
     )
 
     assert invoice.amount_minor == 29_900
     assert invoice.payment_url.startswith("https://app.lava.top/")
     assert captured["api_key"] == "lava-secret"
     assert captured["body"] == {
+        "email": "client@example.com",
         "offerId": "d6a4c96c-157f-44fc-b175-dbb9026bde60",
         "currency": "RUB",
         "periodicity": "MONTHLY",
@@ -75,5 +76,5 @@ async def test_lava_rejects_non_https_payment_url(
             offer_id=uuid.UUID("d6a4c96c-157f-44fc-b175-dbb9026bde60"),
             currency="RUB",
             periodicity="MONTHLY",
-            email=None,
+            email="client@example.com",
         )

@@ -69,14 +69,14 @@ export class ControlApiClient {
     });
   }
 
-  createPayment(deviceToken, tariffCode, {termsAccepted, recurringConsent}) {
+  createPayment(deviceToken, tariffCode, {email, termsAccepted, recurringConsent}) {
     return this.request("/api/payments/create", {
       method: "POST",
       token: deviceToken,
       idempotencyKey: this.randomUUID(),
       body: {
         tariff_code: tariffCode,
-        email: null,
+        email,
         terms_accepted: termsAccepted,
         recurring_consent: recurringConsent,
       },

@@ -12,6 +12,7 @@ let pairingTimer = null;
 let clockTimer = null;
 let busy = false;
 let availableNodes = null;
+let paymentEmail = "";
 
 document.addEventListener("click", (event) => {
   const actionElement = event.target.closest("[data-action]");
@@ -121,9 +122,12 @@ async function act(action, actionElement = null) {
         showNotice("Поставьте галочку согласия с политикой конфиденциальности внизу страницы. Пролистайте вниз.");
         return;
       }
+      const email = await requestPaymentEmail();
+      if (!email) return;
       await runBusy(async () => {
         const payment = await send("CREATE_PAYMENT", {
           tariffCode: actionElement?.dataset.tariffCode,
+          email,
           termsAccepted,
           recurringConsent,
         });
@@ -153,6 +157,19 @@ async function act(action, actionElement = null) {
       return;
     default:
   }
+}
+
+async function requestPaymentEmail() {
+  const dialog = document.querySelector("#payment-email-dialog");
+  const input = document.querySelector("#payment-email");
+  input.value = paymentEmail;
+  dialog.returnValue = "";
+  dialog.showModal();
+  input.focus();
+  await new Promise((resolve) => dialog.addEventListener("close", resolve, {once: true}));
+  if (dialog.returnValue !== "confirm") return null;
+  paymentEmail = input.value.trim().toLowerCase();
+  return paymentEmail;
 }
 
 async function runBusy(task) {
