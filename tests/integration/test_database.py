@@ -155,6 +155,7 @@ async def test_schema_has_named_constraints_and_indexes(engine: AsyncEngine) -> 
         "node_user_traffic",
         "nodes",
         "outbox_events",
+        "payment_webhook_events",
         "payments",
         "rate_limit_counters",
         "telegram_update_events",
@@ -164,6 +165,8 @@ async def test_schema_has_named_constraints_and_indexes(engine: AsyncEngine) -> 
     }
     assert "ck_nodes_port_range" in schema["nodes"]["checks"]
     assert "uq_payments_user_idempotency" in schema["payments"]["unique"]
+    assert "uq_payments_external_payment_id" in schema["payments"]["unique"]
+    assert "uq_payment_webhook_events_body_hash" in schema["payment_webhook_events"]["unique"]
     assert "uq_users_proxy_username_lower" in schema["users"]["indexes"]
     assert "ix_outbox_claim" in schema["outbox_events"]["indexes"]
     assert all(

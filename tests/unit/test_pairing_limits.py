@@ -25,11 +25,11 @@ async def test_paid_tariff_controls_device_limit(
         subscription_expires_at=now + timedelta(days=30),
     )
 
-    session.scalar.return_value = "vpn_15d"
-    assert await service._device_limit(session, user, now) == 2  # noqa: SLF001
+    session.scalar.return_value = "flow_3m"
+    assert await service._device_limit(session, user, now) == 4  # noqa: SLF001
 
-    session.scalar.return_value = "vpn_30d"
-    assert await service._device_limit(session, user, now) == 5  # noqa: SLF001
+    session.scalar.return_value = "space_6m"
+    assert await service._device_limit(session, user, now) == 8  # noqa: SLF001
 
 
 @pytest.mark.asyncio

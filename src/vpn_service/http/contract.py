@@ -16,6 +16,7 @@ class RequestContractMiddleware(BaseHTTPMiddleware):
             "/api/nodes/select",
             "/api/telemetry/lifecycle",
             "/api/telemetry/events",
+            "/api/payments/create",
         } or bool(
             re.fullmatch(
                 r"/internal/nodes/[0-9a-f-]{36}/credentials/ack",

@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import ipaddress
 import re
+import uuid
 from enum import StrEnum
 from typing import Annotated, Literal, Self
 
@@ -37,7 +38,21 @@ class TariffSettings(BaseModel):
     device_limit: Annotated[int, Field(ge=1, le=10)]
     currency: Literal["RUB"]
     enabled: bool
+    test_only: bool = False
     description: Annotated[str, Field(min_length=1, max_length=100)]
+
+
+class LavaOfferSettings(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    offer_id: uuid.UUID
+    periodicity: Literal[
+        "ONE_TIME",
+        "MONTHLY",
+        "PERIOD_90_DAYS",
+        "PERIOD_180_DAYS",
+        "PERIOD_YEAR",
+    ]
 
 
 class Settings(BaseSettings):
@@ -117,6 +132,7 @@ class Settings(BaseSettings):
     telegram_channel_url: AnyHttpUrl | None = None
     telegram_support_username: str | None = None
     chrome_web_store_url: AnyHttpUrl | None = None
+    legal_documents_base_url: AnyHttpUrl | None = None
     vpn_brand_name: Annotated[str, Field(min_length=1, max_length=32)] = "Virgo"
     subscription_reminder_poll_seconds: Annotated[int, Field(ge=60)] = 300
 
@@ -161,9 +177,19 @@ class Settings(BaseSettings):
     metrics_scrape_token: SecretStr | None = None
 
     tariffs_json: dict[str, TariffSettings]
-    robokassa_hash_algorithm: Literal["SHA256"] = "SHA256"
-    robokassa_is_test: bool = True
+    lava_api_base_url: AnyHttpUrl = AnyHttpUrl("https://gate.lava.top")
+    lava_api_key: SecretStr | None = None
+    lava_webhook_api_key: SecretStr | None = None
+    lava_product_id: uuid.UUID | None = None
+    lava_offers_json: dict[str, LavaOfferSettings] = Field(default_factory=dict)
+    lava_request_timeout_seconds: Annotated[float, Field(gt=0, le=30)] = 10
+    payment_create_rate_per_minute: Annotated[int, Field(gt=0)] = 10
+    lava_webhook_max_body_bytes: Annotated[int, Field(ge=1024, le=1_048_576)] = 65_536
     payments_production_enabled: bool = False
+
+    @property
+    def effective_lava_api_key(self) -> SecretStr | None:
+        return self.lava_api_key
 
     @field_validator("database_url")
     @classmethod
@@ -268,23 +294,34 @@ class Settings(BaseSettings):
             if not 1 <= discovery_scalar < _P256_ORDER:
                 raise ValueError("DISCOVERY_SIGNING_PRIVATE_KEY is outside the P-256 range")
 
-        expected_tariffs = {
-            "vpn_15d": (14_900, 15, 2, "RUB", True),
-            "vpn_30d": (29_900, 30, 5, "RUB", True),
-        }
-        if set(self.tariffs_json) != set(expected_tariffs):
-            raise ValueError("tariffs must define exactly vpn_15d and vpn_30d")
-        for code, expected in expected_tariffs.items():
-            tariff = self.tariffs_json[code]
-            actual = (
-                tariff.amount_minor,
-                tariff.period_days,
-                tariff.device_limit,
-                tariff.currency,
-                tariff.enabled,
+        if not self.tariffs_json:
+            raise ValueError("at least one tariff must be configured")
+        if len(self.tariffs_json) > 20:
+            raise ValueError("at most 20 tariffs may be configured")
+        tariff_code_pattern = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+        if any(tariff_code_pattern.fullmatch(code) is None for code in self.tariffs_json):
+            raise ValueError("tariff codes have an invalid format")
+        unknown_lava_tariffs = set(self.lava_offers_json) - set(self.tariffs_json)
+        if unknown_lava_tariffs:
+            raise ValueError(
+                "LAVA_OFFERS_JSON contains unknown tariffs: "
+                + ", ".join(sorted(unknown_lava_tariffs))
             )
-            if actual != expected:
-                raise ValueError(f"{code} does not match the approved Virgo tariff")
+        disabled_lava_tariffs = {
+            code for code in self.lava_offers_json if not self.tariffs_json[code].enabled
+        }
+        if disabled_lava_tariffs:
+            raise ValueError(
+                "LAVA_OFFERS_JSON contains disabled tariffs: "
+                + ", ".join(sorted(disabled_lava_tariffs))
+            )
+        if (
+            self.lava_api_base_url.scheme != "https"
+            or self.lava_api_base_url.host != "gate.lava.top"
+        ):
+            raise ValueError("LAVA_API_BASE_URL must be https://gate.lava.top")
+        if self.lava_api_base_url.path not in {"", "/"}:
+            raise ValueError("LAVA_API_BASE_URL must not include a path")
 
         if self.app_env is AppEnvironment.PRODUCTION:
             self._validate_production_profile()
@@ -414,6 +451,7 @@ class Settings(BaseSettings):
             "TELEGRAM_CHANNEL_URL": self.telegram_channel_url,
             "TELEGRAM_SUPPORT_USERNAME": self.telegram_support_username,
             "CHROME_WEB_STORE_URL": self.chrome_web_store_url,
+            "LEGAL_DOCUMENTS_BASE_URL": self.legal_documents_base_url,
         }
         missing = [name for name, value in telegram_required.items() if value is None]
         if missing:
@@ -440,10 +478,9 @@ class Settings(BaseSettings):
             if "replace-with" in raw_secret.lower():
                 raise ValueError(f"{name} contains a development placeholder")
         if self.payments_production_enabled:
-            raise ValueError("production payments remain disabled until the fiscal gate is closed")
-        if not self.robokassa_is_test:
             raise ValueError(
-                "Robokassa must remain in test mode while production payments are disabled"
+                "production Lava payments remain disabled until legal details, fiscal receipts, "
+                "taxes and refunds are approved"
             )
 
 

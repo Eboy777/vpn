@@ -20,6 +20,7 @@ def test_stage_one_metadata_contains_expected_tables() -> None:
         "node_user_traffic",
         "nodes",
         "outbox_events",
+        "payment_webhook_events",
         "payments",
         "rate_limit_counters",
         "telegram_update_events",

@@ -40,20 +40,34 @@ def test_rejects_non_async_postgres_dsn(settings_factory: Callable[..., Settings
         settings_factory(database_url="sqlite+aiosqlite://")
 
 
-def test_rejects_changed_mvp_tariff(settings_factory: Callable[..., Settings]) -> None:
+def test_accepts_tariff_characteristics_from_configuration(
+    settings_factory: Callable[..., Settings],
+) -> None:
     tariffs = deepcopy(TARIFFS)
     tariffs["vpn_30d"]["amount_minor"] = 30_000
 
-    with pytest.raises(ValidationError, match="vpn_30d does not match"):
-        settings_factory(tariffs_json=tariffs)
+    settings = settings_factory(tariffs_json=tariffs)
+
+    assert settings.tariffs_json["vpn_30d"].amount_minor == 30_000
 
 
-def test_rejects_missing_approved_tariff(settings_factory: Callable[..., Settings]) -> None:
-    tariffs = deepcopy(TARIFFS)
-    tariffs.pop("vpn_15d")
+def test_rejects_empty_tariff_catalog(settings_factory: Callable[..., Settings]) -> None:
+    with pytest.raises(ValidationError, match="at least one tariff"):
+        settings_factory(tariffs_json={})
 
-    with pytest.raises(ValidationError, match="exactly vpn_15d and vpn_30d"):
-        settings_factory(tariffs_json=tariffs)
+
+def test_rejects_lava_offer_for_unknown_tariff(
+    settings_factory: Callable[..., Settings],
+) -> None:
+    with pytest.raises(ValidationError, match="contains unknown tariffs"):
+        settings_factory(
+            lava_offers_json={
+                "unknown": {
+                    "offer_id": "d6a4c96c-157f-44fc-b175-dbb9026bde60",
+                    "periodicity": "MONTHLY",
+                }
+            }
+        )
 
 
 def test_production_profile_accepts_only_approved_values(
@@ -78,8 +92,7 @@ def test_production_profile_accepts_only_approved_values(
         ({"admin_telegram_chat_ids_json": []}, "separate admin Telegram bot"),
         ({"metrics_scrape_token": None}, "strong metrics scrape token"),
         ({"discovery_signing_private_key": None}, "DISCOVERY_SIGNING_PRIVATE_KEY"),
-        ({"payments_production_enabled": True}, "production payments remain disabled"),
-        ({"robokassa_is_test": False}, "must remain in test mode"),
+        ({"payments_production_enabled": True}, "production Lava payments remain disabled"),
         (
             {"telegram_webhook_secret": "replace-with-32-character-secret-value"},
             "contains a development placeholder",

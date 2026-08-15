@@ -292,10 +292,13 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(html.includes('<dt>ID</dt><dd id="device-id">'), true);
   assert.equal(html.includes("Пользовательское соглашение"), true);
   assert.equal(html.includes("Выбрать сервер:"), true);
-  assert.equal(html.includes("Virgo TRIP"), true);
   assert.equal(html.includes("Virgo FLOW"), true);
-  assert.equal(html.includes("149 ₽ / 15 дней"), true);
-  assert.equal(html.includes("299 ₽ / 30 дней"), true);
+  assert.equal(html.includes("Virgo SPACE"), true);
+  assert.equal(html.includes("299 ₽"), true);
+  assert.equal(html.includes("1 499 ₽"), true);
+  assert.equal(html.includes("Тестовый тариф Lava"), true);
+  assert.equal(html.includes('data-tariff-code="flow_3m"'), true);
+  assert.equal(html.includes('data-tariff-code="space_6m"'), true);
   assert.equal(html.includes('src="assets/virgo-logo.png"'), true);
   assert.equal(html.includes("v1.0.0"), false);
   assert.equal(html.includes("brand-version"), false);
@@ -311,6 +314,7 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(script.includes("countryFlag(node?.country_code)"), true);
   assert.equal(script.includes("BUILD_CONFIG.telegramBotUrl"), true);
   assert.equal(script.includes("BUILD_CONFIG.telegramSupportUrl"), true);
+  assert.equal(script.includes('case "select-period"'), true);
   assert.equal(configScript.includes("?start=support"), true);
   assert.equal(css.includes(".renewal-button.renewal-quiet"), true);
 });

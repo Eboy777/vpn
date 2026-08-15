@@ -144,6 +144,11 @@ async function handleMessage(message) {
       return view();
     case "GET_NODES":
       return getNodes();
+    case "CREATE_PAYMENT":
+      return createPayment(message.tariffCode, {
+        termsAccepted: message.termsAccepted,
+        recurringConsent: message.recurringConsent,
+      });
     case "TRACK_EVENT":
       if (message.eventType !== "tariff_viewed") throw new Error("Некорректное событие");
       await reportVpnEvent("tariff_viewed");
@@ -154,6 +159,16 @@ async function handleMessage(message) {
     default:
       throw new Error("Неизвестная команда расширения");
   }
+}
+
+async function createPayment(tariffCode, {termsAccepted, recurringConsent}) {
+  const state = await store.read();
+  if (!state.deviceToken) throw new Error("Сначала привяжите Telegram");
+  if (!termsAccepted) throw new Error("Примите пользовательское соглашение");
+  return api.createPayment(state.deviceToken, tariffCode, {
+    termsAccepted: Boolean(termsAccepted),
+    recurringConsent: Boolean(recurringConsent),
+  });
 }
 
 async function view() {

@@ -15,6 +15,7 @@ from vpn_service.application.metrics import MetricsService
 from vpn_service.application.node_credentials import NodeAuthenticator, NodeCredentialsService
 from vpn_service.application.node_telemetry import NodeTelemetryService
 from vpn_service.application.pairing import PairingService
+from vpn_service.application.payments import PaymentService
 from vpn_service.application.telegram_bot import TelegramBotService
 from vpn_service.application.telemetry import TelemetryService
 from vpn_service.config import Settings
@@ -27,10 +28,12 @@ from vpn_service.http.cors import ExtensionCorsMiddleware
 from vpn_service.http.discovery import router as discovery_router
 from vpn_service.http.errors import install_error_handlers
 from vpn_service.http.health import router as health_router
+from vpn_service.http.legal import router as legal_router
 from vpn_service.http.metrics import router as metrics_router
 from vpn_service.http.middleware import RequestLoggingMiddleware
 from vpn_service.http.node_credentials import router as node_credentials_router
 from vpn_service.http.pairing import router as pairing_router
+from vpn_service.http.payments import router as payments_router
 from vpn_service.http.responses import ContractJSONResponse
 from vpn_service.http.telegram import router as telegram_router
 from vpn_service.http.telemetry import router as telemetry_router
@@ -69,11 +72,6 @@ def create_app(
         PairingService(database.sessions, resolved_settings) if database is not None else None
     )
     app.state.pairing_service = pairing_service
-    app.state.telegram_bot_service = (
-        TelegramBotService(database.sessions, resolved_settings, pairing_service)
-        if database is not None and pairing_service is not None
-        else None
-    )
     app.state.device_authenticator = (
         DeviceAuthenticator(database.sessions, resolved_settings) if database is not None else None
     )
@@ -107,6 +105,19 @@ def create_app(
     app.state.discovery_service = (
         DiscoveryService(database.sessions, resolved_settings) if database is not None else None
     )
+    app.state.payment_service = (
+        PaymentService(database.sessions, resolved_settings) if database is not None else None
+    )
+    app.state.telegram_bot_service = (
+        TelegramBotService(
+            database.sessions,
+            resolved_settings,
+            pairing_service,
+            app.state.payment_service,
+        )
+        if database is not None and pairing_service is not None
+        else None
+    )
     install_error_handlers(app)
     app.add_middleware(RequestContractMiddleware)
     app.add_middleware(AdminSecurityHeadersMiddleware)
@@ -116,10 +127,12 @@ def create_app(
     )
     app.add_middleware(RequestLoggingMiddleware)
     app.include_router(health_router)
+    app.include_router(legal_router)
     app.include_router(discovery_router)
     app.include_router(pairing_router)
     app.include_router(telegram_router)
     app.include_router(access_router)
+    app.include_router(payments_router)
     app.include_router(node_credentials_router)
     app.include_router(telemetry_router)
     app.include_router(canary_router)

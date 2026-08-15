@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -9,6 +10,92 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validato
 
 class StrictRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class PaymentCreateRequest(StrictRequest):
+    tariff_code: Annotated[str, Field(pattern=r"^[a-z0-9_]{1,64}$")]
+    email: Annotated[str, Field(min_length=3, max_length=320)] | None = None
+    terms_accepted: bool
+    recurring_consent: bool
+
+    @field_validator("email")
+    @classmethod
+    def basic_email_format(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        if normalized.count("@") != 1 or any(character.isspace() for character in normalized):
+            raise ValueError("email has an invalid format")
+        local, domain = normalized.split("@", 1)
+        if not local or "." not in domain or domain.startswith(".") or domain.endswith("."):
+            raise ValueError("email has an invalid format")
+        return normalized
+
+
+class PaymentCreateResponse(StrictRequest):
+    payment_id: uuid.UUID
+    contract_id: uuid.UUID
+    payment_url: str
+    tariff_code: str
+    amount_minor: Annotated[int, Field(gt=0)]
+    currency: Literal["RUB"]
+    periodicity: Literal[
+        "ONE_TIME",
+        "MONTHLY",
+        "PERIOD_90_DAYS",
+        "PERIOD_180_DAYS",
+        "PERIOD_YEAR",
+    ]
+
+
+class SubscriptionCancelResponse(StrictRequest):
+    cancelled: bool
+
+
+class LavaWebhookProduct(StrictRequest):
+    id: uuid.UUID
+    title: str
+
+
+class LavaWebhookBuyer(StrictRequest):
+    email: str
+
+
+class LavaWebhookRequest(StrictRequest):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    event_type: Literal[
+        "payment.success",
+        "payment.failed",
+        "subscription.recurring.payment.success",
+        "subscription.recurring.payment.failed",
+        "subscription.cancelled",
+    ] = Field(alias="eventType")
+    product: LavaWebhookProduct
+    contract_id: uuid.UUID = Field(alias="contractId")
+    parent_contract_id: uuid.UUID | None = Field(default=None, alias="parentContractId")
+    buyer: LavaWebhookBuyer
+    amount: Annotated[Decimal, Field(gt=0, max_digits=20, decimal_places=2)]
+    currency: Literal["RUB", "USD", "EUR"]
+    status: str
+    timestamp: AwareDatetime
+    client_utm: dict[str, str | None] | None = Field(default=None, alias="clientUtm")
+    error_message: str | None = Field(default=None, alias="errorMessage")
+
+
+class LavaWebhookResponse(StrictRequest):
+    result: Literal[
+        "paid",
+        "failed",
+        "cancelled",
+        "duplicate",
+        "product_ignored",
+        "contract_ignored",
+        "event_ignored",
+        "amount_mismatch",
+        "provider_mismatch",
+        "user_ignored",
+    ]
 
 
 class DiscoveryDocumentResponse(StrictRequest):

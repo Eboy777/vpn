@@ -73,11 +73,14 @@ def test_bot_copy_and_keyboards_follow_the_approved_scenarios(
         [{"text": "⚡️ Подключить VPN"}],
         [{"text": "👤 Мой профиль"}, {"text": "💬 Поддержка"}],
     ]
-    assert "Virgo TRIP — 149 ₽ — 15 дней" in tariffs_text(settings)
-    assert "Virgo FLOW — 299 ₽ — 30 дней" in tariffs_text(settings)
-    assert tariff_price(settings.tariffs_json["vpn_15d"]) == "149 ₽"
-    assert tariff_price(settings.tariffs_json["vpn_30d"]) == "299 ₽"
-    assert len(tariffs_keyboard(settings)["inline_keyboard"]) == 3
+    assert "Virgo FLOW" in tariffs_text(settings)
+    assert "3 месяца — 499 ₽" in tariffs_text(settings)
+    assert "Virgo SPACE — рекомендуем" in tariffs_text(settings)
+    assert "6 месяцев — 1 499 ₽" in tariffs_text(settings)
+    assert "Тестовый тариф Lava" in tariffs_text(settings)
+    assert tariff_price(settings.tariffs_json["flow_1m"]) == "299 ₽"
+    assert tariff_price(settings.tariffs_json["space_6m"]) == "1 499 ₽"
+    assert len(tariffs_keyboard(settings)["inline_keyboard"]) == 8
     assert tariffs_keyboard(settings)["inline_keyboard"][-1][0]["callback_data"] == ("menu:profile")
     assert welcome_text(settings).startswith("Привет! 🛰\n\nДобро пожаловать в Virgo VPN")
     assert "Служба поддержки Virgo VPN" in support_text()
@@ -99,14 +102,14 @@ def test_bot_copy_and_keyboards_follow_the_approved_scenarios(
     payment_action = _edit_payment(
         123456789,
         7,
-        "vpn_15d",
+        "flow_1m",
         guest,
         started_at,
         settings,
     )
-    assert "Virgo TRIP на 15 дней" in payment_action.params["text"]
-    assert "25.08.2026" in payment_action.params["text"]
-    assert "Автопродление пока не включено" in payment_action.params["text"]
+    assert "Virgo FLOW · 1 месяц на 30 дней" in payment_action.params["text"]
+    assert "09.09.2026" in payment_action.params["text"]
+    assert "разовая оплата без автоматического продления" in payment_action.params["text"]
 
     browser_faq = _edit_faq(123456789, 7, "browser", 123456789, settings)
     assert "вход через Telegram" in browser_faq.params["text"]
@@ -246,8 +249,7 @@ async def test_webhook_accepts_message_and_callback_updates(
     service = _FakeTelegramBotService()
     app.state.telegram_bot_service = service
     path = (
-        "/integrations/telegram/webhook/"
-        + settings.telegram_webhook_path_secret.get_secret_value()  # type: ignore[union-attr]
+        "/integrations/telegram/webhook/" + settings.telegram_webhook_path_secret.get_secret_value()  # type: ignore[union-attr]
     )
     headers = {
         "X-Telegram-Bot-Api-Secret-Token": (

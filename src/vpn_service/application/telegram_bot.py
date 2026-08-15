@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import math
 import re
 import uuid
@@ -12,8 +13,10 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from vpn_service.application.pairing import PairingService
+from vpn_service.application.payments import PaymentService
 from vpn_service.config import Settings, TariffSettings
 from vpn_service.domain.enums import OutboxStatus, PaymentStatus, UserStatus
+from vpn_service.domain.errors import ApplicationError
 from vpn_service.http.schemas import TelegramCallbackQuery, TelegramMessage, TelegramUpdateRequest
 from vpn_service.persistence.models import OutboxEvent, Payment, TelegramUpdateEvent, User
 from vpn_service.security.credentials import ProxyCredentialsCipher
@@ -47,10 +50,12 @@ class TelegramBotService:
         sessions: async_sessionmaker[AsyncSession],
         settings: Settings,
         pairing_service: PairingService,
+        payment_service: PaymentService | None = None,
     ) -> None:
         self._sessions = sessions
         self._settings = settings
         self._pairing_service = pairing_service
+        self._payment_service = payment_service
         self._credentials = ProxyCredentialsCipher(settings)
 
     async def process_update(self, update: TelegramUpdateRequest) -> str:
@@ -165,7 +170,12 @@ class TelegramBotService:
                 profile=profile,
             )
         assert update.callback_query is not None
-        return self._callback_actions(update.callback_query, profile=profile, now=now)
+        return await self._callback_actions(
+            update.callback_query,
+            user=user,
+            profile=profile,
+            now=now,
+        )
 
     def _message_actions(
         self,
@@ -186,10 +196,11 @@ class TelegramBotService:
             return [_send_support(message.chat.id, profile.telegram_id, self._settings)]
         return [_send_profile(message.chat.id, profile, self._settings)]
 
-    def _callback_actions(
+    async def _callback_actions(
         self,
         callback: TelegramCallbackQuery,
         *,
+        user: User,
         profile: ProfileView,
         now: datetime,
     ) -> list[TelegramAction]:
@@ -240,6 +251,16 @@ class TelegramBotService:
                     self._settings,
                 )
             )
+        elif data == "subscription:cancel":
+            if self._payment_service is None:
+                actions.append(_edit_payment_error(chat_id, message_id))
+            else:
+                try:
+                    cancelled = await self._payment_service.cancel(user_id=user.id)
+                except ApplicationError:
+                    actions.append(_edit_payment_error(chat_id, message_id))
+                else:
+                    actions.append(_edit_subscription_cancelled(chat_id, message_id, cancelled))
         elif data == "menu:main":
             actions.append(_send_welcome(chat_id, self._settings))
         elif data.startswith("tariff:"):
@@ -256,7 +277,31 @@ class TelegramBotService:
             )
         elif data.startswith("payment:"):
             code = data.removeprefix("payment:")
-            actions.append(_edit_payment_placeholder(chat_id, message_id, code, self._settings))
+            offer = self._settings.lava_offers_json.get(code)
+            if self._payment_service is None or offer is None:
+                actions.append(_edit_payment_placeholder(chat_id, message_id, code, self._settings))
+            else:
+                idempotency_key = "telegram:" + hashlib.sha256(callback.id.encode()).hexdigest()
+                try:
+                    payment = await self._payment_service.create(
+                        user_id=user.id,
+                        tariff_code=code,
+                        idempotency_key=idempotency_key,
+                        email=None,
+                        terms_accepted=True,
+                        recurring_consent=offer.periodicity != "ONE_TIME",
+                    )
+                except ApplicationError:
+                    actions.append(_edit_payment_error(chat_id, message_id))
+                else:
+                    actions.append(
+                        _edit_payment_link(
+                            chat_id,
+                            message_id,
+                            payment.payment_url,
+                            recurring=offer.periodicity != "ONE_TIME",
+                        )
+                    )
         else:
             actions.append(_edit_profile(chat_id, message_id, profile, self._settings))
         return actions
@@ -278,7 +323,7 @@ class TelegramBotService:
         )
         if user.subscription_expires_at is not None and user.subscription_expires_at > now:
             expires_at = user.subscription_expires_at
-            tariff_code = latest_paid_payment.tariff_code if latest_paid_payment else "vpn_30d"
+            tariff_code = latest_paid_payment.tariff_code if latest_paid_payment else "flow_1m"
             tariff = self._settings.tariffs_json.get(tariff_code)
             started_at = latest_paid_payment.paid_at if latest_paid_payment else None
             if started_at is None and tariff is not None:
@@ -418,55 +463,84 @@ def profile_keyboard(profile: ProfileView, settings: Settings) -> dict[str, Any]
 def tariff_name(code: str) -> str:
     names = {
         "vpn_15d": "Virgo TRIP",
-        "vpn_30d": "Virgo FLOW",
+        "vpn_30d": "Тестовый тариф Lava",
+        "flow_1m": "Virgo FLOW · 1 месяц",
+        "flow_3m": "Virgo FLOW · 3 месяца",
+        "flow_6m": "Virgo FLOW · 6 месяцев",
+        "space_1m": "Virgo SPACE · 1 месяц",
+        "space_3m": "Virgo SPACE · 3 месяца",
+        "space_6m": "Virgo SPACE · 6 месяцев",
     }
     return names.get(code, code.replace("_", " ").title())
 
 
 def tariff_price(tariff: TariffSettings) -> str:
     rubles, kopecks = divmod(tariff.amount_minor, 100)
-    return f"{rubles} ₽" if kopecks == 0 else f"{rubles},{kopecks:02d} ₽"
+    formatted = f"{rubles:,}".replace(",", " ")
+    return f"{formatted} ₽" if kopecks == 0 else f"{formatted},{kopecks:02d} ₽"
 
 
 def tariffs_text(settings: Settings) -> str:
-    sections = ["Тарифы:"]
-    trip = settings.tariffs_json.get("vpn_15d")
-    if trip is not None and trip.enabled:
+    sections = ["💳 Тарифы Virgo"]
+    if any(code in settings.tariffs_json for code in ("flow_1m", "flow_3m", "flow_6m")):
         sections.append(
-            "\nVirgo TRIP — "
-            f"{tariff_price(trip)} — {trip.period_days} дней\n"
-            "Лёгкий стартовый план для базовых задач и поездок.\n\n"
-            "• Быстрое подключение\n"
-            "• 2 устройства\n"
-            "• Поддержка 24/7"
+            "\nVirgo FLOW\n"
+            "Лёгкий стартовый план для базовых задач и социальных сетей.\n"
+            "• Быстрое подключение без ограничений\n"
+            "• 4 устройства\n"
+            "• Поддержка 24/7\n\n" + _tariff_price_lines(settings, "flow")
         )
-    flow = settings.tariffs_json.get("vpn_30d")
-    if flow is not None and flow.enabled:
+    if any(code in settings.tariffs_json for code in ("space_1m", "space_3m", "space_6m")):
         sections.append(
-            "\nVirgo FLOW — "
-            f"{tariff_price(flow)} — {flow.period_days} дней (Рекомендуем)\n"
-            "Максимальный комфорт, сглаживание задержек и полная свобода.\n\n"
-            "• До 5 устройств\n"
-            "• Максимальная скорость\n"
-            "• Автовыбор лучшего сервера"
+            "\nVirgo SPACE — рекомендуем\n"
+            "Максимальный комфорт, сглаживание задержек и полная свобода.\n"
+            "• До 8 устройств\n"
+            "• Максимальная скорость и выделенные линии\n"
+            "• Автовыбор лучшего сервера\n\n" + _tariff_price_lines(settings, "space")
+        )
+    test_tariff = settings.tariffs_json.get("vpn_30d")
+    if test_tariff is not None and test_tariff.enabled:
+        sections.append(
+            "\n🧪 Тестовый тариф Lava\n"
+            "Только для технической проверки платежей, не публичный тариф."
         )
     return "\n".join(sections)
 
 
+def _tariff_price_lines(settings: Settings, plan: str) -> str:
+    labels = {"1m": "1 месяц", "3m": "3 месяца", "6m": "6 месяцев"}
+    lines = []
+    for period in ("1m", "3m", "6m"):
+        tariff = settings.tariffs_json.get(f"{plan}_{period}")
+        if tariff is not None and tariff.enabled:
+            lines.append(f"{labels[period]} — {tariff_price(tariff)}")
+    return "\n".join(lines)
+
+
 def tariffs_keyboard(settings: Settings) -> dict[str, Any]:
-    rows = [
-        [
-            {
-                "text": (
-                    f"{'🚀' if code == 'vpn_15d' else '⚡️'} Купить "
-                    f"{tariff_name(code)} — {tariff_price(tariff)}"
-                ),
-                "callback_data": f"tariff:{code}",
-            }
-        ]
-        for code, tariff in settings.tariffs_json.items()
-        if tariff.enabled
-    ]
+    order = (
+        "flow_1m",
+        "flow_3m",
+        "flow_6m",
+        "space_1m",
+        "space_3m",
+        "space_6m",
+        "vpn_30d",
+    )
+    rows = []
+    for code in order:
+        tariff = settings.tariffs_json.get(code)
+        if tariff is None or not tariff.enabled:
+            continue
+        icon = "🧪" if code == "vpn_30d" else "⚡️" if code.startswith("flow") else "🚀"
+        rows.append(
+            [
+                {
+                    "text": f"{icon} {tariff_name(code)} — {tariff_price(tariff)}",
+                    "callback_data": f"tariff:{code}",
+                }
+            ]
+        )
     rows.append([{"text": "◀️ Назад", "callback_data": "menu:profile"}])
     return {"inline_keyboard": rows}
 
@@ -656,8 +730,10 @@ def _edit_faq(
         ),
         "billing": (
             "Управление подпиской и списаниями\n\n"
-            "Автопродление сейчас не включено. Оплаченный период продолжает действовать "
-            "до конечной даты, а продлить или сменить тариф можно через профиль."
+            "Если тариф оформлен с автопродлением, отменить его можно в боте: "
+            "«Мой профиль» → «Управление подпиской» → «Отключить автопродление». "
+            "После отмены новых списаний не будет, а уже оплаченный доступ продолжит "
+            "действовать до указанной даты. Если кнопка не сработала, напишите оператору."
         ),
     }
     keyboards = {
@@ -742,11 +818,17 @@ def _send_subscription_management(
     return _send(
         chat_id,
         "⚙️ Управление подпиской\n\n"
-        "Автопродление сейчас не включено. Доступ можно продлить или сменить тариф "
-        "вручную. Уже оплаченный период продолжает действовать до даты окончания.",
+        "Здесь можно сменить тариф или отключить дальнейшие автоматические списания. "
+        "После отмены уже оплаченный доступ действует до даты окончания.",
         reply_markup={
             "inline_keyboard": [
                 [{"text": "Продлить / Сменить тариф", "callback_data": "menu:tariffs"}],
+                [
+                    {
+                        "text": "Отключить автопродление",
+                        "callback_data": "subscription:cancel",
+                    }
+                ],
                 [{"text": "Написать оператору", "url": _support_url(telegram_id, settings)}],
                 [{"text": "◀️ Назад в профиль", "callback_data": "menu:profile"}],
             ]
@@ -778,29 +860,70 @@ def _edit_payment(
             "Тариф недоступен.",
             {"inline_keyboard": [[{"text": "◀️ Назад", "callback_data": "menu:tariffs"}]]},
         )
-    period_start = profile.expires_at if profile.expires_at and profile.expires_at > now else now
-    period_end = period_start + timedelta(days=tariff.period_days)
+    offer = settings.lava_offers_json.get(code)
+    recurring = offer is not None and offer.periodicity != "ONE_TIME"
     renewal_note = (
-        "Автопродление пока не включено. Продлить подписку можно вручную в профиле бота."
-        if not settings.payments_production_enabled
-        else (
-            "Мы сами продлим подписку, чтобы вы не остались без защищённого интернета. "
-            "Автопродление можно отключить в профиле бота."
-        )
+        "Оплата включает автопродление с указанной периодичностью. Его можно отключить "
+        "в профиле бота; оплаченный срок при этом сохранится. Нажимая кнопку оплаты, "
+        "вы принимаете условия подписки и соглашаетесь на регулярные списания."
+        if recurring
+        else "Это разовая оплата без автоматического продления."
     )
+    rows: list[list[dict[str, str]]] = [
+        [
+            {
+                "text": "💳 Оплатить и включить автопродление" if recurring else "💳 Оплатить",
+                "callback_data": f"payment:{code}",
+            }
+        ],
+    ]
+    if settings.legal_documents_base_url is not None:
+        rows.extend(
+            [
+                [
+                    {
+                        "text": "Пользовательское соглашение",
+                        "url": _legal_url(settings, "user-agreement"),
+                    },
+                    {
+                        "text": "Автопродление",
+                        "url": _legal_url(settings, "recurring-payment-consent"),
+                    },
+                ],
+                [
+                    {
+                        "text": "Конфиденциальность",
+                        "url": _legal_url(settings, "privacy-policy"),
+                    },
+                    {
+                        "text": "Отмена и возврат",
+                        "url": _legal_url(settings, "refund-and-cancellation"),
+                    },
+                ],
+            ]
+        )
+    rows.append([{"text": "◀️ Выбрать другой тариф", "callback_data": "menu:tariffs"}])
+    if offer is not None:
+        payment_terms = (
+            f"Вы выбрали тариф {tariff_name(code)}.\n\n"
+            "Точная цена, период подписки и дата следующего списания будут показаны "
+            "на странице оплаты Lava до подтверждения платежа.\n\n"
+        )
+    else:
+        period_start = (
+            profile.expires_at if profile.expires_at and profile.expires_at > now else now
+        )
+        period_end = period_start + timedelta(days=tariff.period_days)
+        payment_terms = (
+            f"Вы выбрали тариф {tariff_name(code)} на {tariff.period_days} дней.\n\n"
+            f"├ ‣ Период: до {period_end.astimezone(UTC).strftime('%d.%m.%Y')}\n"
+            f"└ ‣ К оплате: {tariff_price(tariff)}\n\n"
+        )
     return _edit(
         chat_id,
         message_id,
-        f"Вы выбрали тариф {tariff_name(code)} на {tariff.period_days} дней.\n\n"
-        f"├ ‣ Период: до {period_end.astimezone(UTC).strftime('%d.%m.%Y')}\n"
-        f"└ ‣ К оплате: {tariff_price(tariff)}\n\n"
-        f"{renewal_note}",
-        {
-            "inline_keyboard": [
-                [{"text": "💳 Оплатить", "callback_data": f"payment:{code}"}],
-                [{"text": "◀️ Выбрать другой тариф", "callback_data": "menu:tariffs"}],
-            ]
-        },
+        f"{payment_terms}{renewal_note}",
+        {"inline_keyboard": rows},
     )
 
 
@@ -819,6 +942,59 @@ def _edit_payment_placeholder(
         f"Оплата тарифа {title} ({price}) пока отключена. "
         "Ссылка появится после подключения тестового эквайринга.",
         {"inline_keyboard": [[{"text": "◀️ Назад", "callback_data": "menu:tariffs"}]]},
+    )
+
+
+def _edit_payment_link(
+    chat_id: int,
+    message_id: int,
+    payment_url: str,
+    *,
+    recurring: bool,
+) -> TelegramAction:
+    note = (
+        "На странице Lava проверьте сумму и период автопродления перед подтверждением."
+        if recurring
+        else "На странице Lava проверьте сумму перед подтверждением."
+    )
+    return _edit(
+        chat_id,
+        message_id,
+        "Платёжная ссылка готова. " + note,
+        {
+            "inline_keyboard": [
+                [{"text": "Перейти к безопасной оплате", "url": payment_url}],
+                [{"text": "◀️ Назад к тарифам", "callback_data": "menu:tariffs"}],
+            ]
+        },
+    )
+
+
+def _edit_payment_error(chat_id: int, message_id: int) -> TelegramAction:
+    return _edit(
+        chat_id,
+        message_id,
+        "Не удалось подготовить оплату. Попробуйте ещё раз позже или напишите оператору.",
+        {"inline_keyboard": [[{"text": "◀️ Назад", "callback_data": "menu:tariffs"}]]},
+    )
+
+
+def _edit_subscription_cancelled(
+    chat_id: int,
+    message_id: int,
+    cancelled: bool,
+) -> TelegramAction:
+    text = (
+        "Автопродление отключено. Новых списаний не будет, а оплаченный доступ "
+        "сохранится до даты окончания."
+        if cancelled
+        else "Активная подписка с автопродлением не найдена."
+    )
+    return _edit(
+        chat_id,
+        message_id,
+        text,
+        {"inline_keyboard": [[{"text": "◀️ В профиль", "callback_data": "menu:profile"}]]},
     )
 
 
@@ -951,6 +1127,11 @@ def _chrome_url(settings: Settings) -> str:
 def _support_url(telegram_id: int, settings: Settings) -> str:
     username = settings.telegram_support_username or settings.telegram_bot_username or "telegram"
     return f"https://t.me/{username}?start=user_{telegram_id}"
+
+
+def _legal_url(settings: Settings, document: str) -> str:
+    assert settings.legal_documents_base_url is not None
+    return f"{str(settings.legal_documents_base_url).rstrip('/')}/{document}"
 
 
 async def _transaction_now(session: AsyncSession) -> datetime:

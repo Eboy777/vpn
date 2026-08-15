@@ -376,7 +376,16 @@ class Payment(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
     invoice_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
-    external_payment_id: Mapped[str | None] = mapped_column(String(128))
+    external_payment_id: Mapped[str | None] = mapped_column(String(128), unique=True)
+    parent_external_payment_id: Mapped[str | None] = mapped_column(String(128))
+    lava_offer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    buyer_email: Mapped[str | None] = mapped_column(String(320))
+    periodicity: Mapped[str | None] = mapped_column(String(32))
+    subscription_status: Mapped[str | None] = mapped_column(String(32))
+    subscription_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    recurring_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    consent_version: Mapped[str | None] = mapped_column(String(32))
     tariff_code: Mapped[str] = mapped_column(String(64), nullable=False)
     amount_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
     period_days: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -389,6 +398,23 @@ class Payment(Base):
     create_response_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created_at_column()
+
+
+class PaymentWebhookEvent(Base):
+    __tablename__ = "payment_webhook_events"
+    __table_args__ = (
+        CheckConstraint("body_hash ~ '^[0-9a-f]{64}$'", name="body_hash_format"),
+        UniqueConstraint("body_hash", name="uq_payment_webhook_events_body_hash"),
+        Index("ix_payment_webhook_events_contract", "contract_id", "received_at"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    body_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    contract_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    result_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    received_at: Mapped[datetime] = created_at_column()
 
 
 class NodeSnapshotAck(Base):

@@ -82,9 +82,39 @@ async function act(action, actionElement = null) {
     case "telegram":
       openExternal(BUILD_CONFIG.telegramBotUrl);
       return;
-    case "payment-placeholder":
-      showNotice("Оплата пока отключена до завершения юридической и фискальной настройки.");
+    case "select-period": {
+      const card = actionElement?.closest(".tariff-card");
+      const plan = actionElement?.dataset.plan;
+      const tariffCode = actionElement?.dataset.tariffCode;
+      if (!card || !plan || !tariffCode) return;
+      for (const option of card.querySelectorAll(".period-option")) {
+        const selected = option === actionElement;
+        option.classList.toggle("selected", selected);
+        option.setAttribute("aria-checked", String(selected));
+      }
+      const paymentButton = card.querySelector(".plan-payment-button");
+      const periodLabel = actionElement.querySelector("span")?.textContent || "";
+      paymentButton.dataset.tariffCode = tariffCode;
+      paymentButton.textContent = `Выбрать ${plan.toUpperCase()} · ${periodLabel}`;
       return;
+    }
+    case "create-payment": {
+      const termsAccepted = Boolean(document.querySelector("#payment-terms")?.checked);
+      const recurringConsent = Boolean(document.querySelector("#payment-recurring")?.checked);
+      if (!termsAccepted || !recurringConsent) {
+        showNotice("Подтвердите условия и автопродление перед оплатой.");
+        return;
+      }
+      await runBusy(async () => {
+        const payment = await send("CREATE_PAYMENT", {
+          tariffCode: actionElement?.dataset.tariffCode,
+          termsAccepted,
+          recurringConsent,
+        });
+        openExternal(payment.payment_url);
+      });
+      return;
+    }
     case "start-pairing":
     case "restart-pairing":
       await runBusy(async () => {
@@ -326,6 +356,9 @@ function previewResponse(type, payload) {
       {id: "00000000-0000-4000-8000-000000000001", name: "NL-1", country_code: "NL", selected: true},
       {id: "00000000-0000-4000-8000-000000000002", name: "DE-1", country_code: "DE", selected: false},
     ],
+  };
+  if (type === "CREATE_PAYMENT") return {
+    payment_url: "https://app.lava.top/preview-payment",
   };
   return viewModel;
 }

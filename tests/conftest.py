@@ -25,13 +25,53 @@ PRODUCTION_TOKEN_KEYS = {
 }
 PRODUCTION_PROXY_KEYS = {"v1": "cHJvZC1rZXktMDYtMDEyMzQ1Njc4OWFiY2RlZmdoaWo"}
 TARIFFS = {
-    "vpn_15d": {
-        "amount_minor": 14_900,
-        "period_days": 15,
-        "device_limit": 2,
+    "flow_1m": {
+        "amount_minor": 29_900,
+        "period_days": 30,
+        "device_limit": 4,
         "currency": "RUB",
         "enabled": True,
-        "description": "Лёгкий стартовый план для базовых задач и поездок",
+        "description": "Virgo FLOW на 1 месяц",
+    },
+    "flow_3m": {
+        "amount_minor": 49_900,
+        "period_days": 90,
+        "device_limit": 4,
+        "currency": "RUB",
+        "enabled": True,
+        "description": "Virgo FLOW на 3 месяца",
+    },
+    "flow_6m": {
+        "amount_minor": 79_900,
+        "period_days": 180,
+        "device_limit": 4,
+        "currency": "RUB",
+        "enabled": True,
+        "description": "Virgo FLOW на 6 месяцев",
+    },
+    "space_1m": {
+        "amount_minor": 49_900,
+        "period_days": 30,
+        "device_limit": 8,
+        "currency": "RUB",
+        "enabled": True,
+        "description": "Virgo SPACE на 1 месяц",
+    },
+    "space_3m": {
+        "amount_minor": 94_900,
+        "period_days": 90,
+        "device_limit": 8,
+        "currency": "RUB",
+        "enabled": True,
+        "description": "Virgo SPACE на 3 месяца",
+    },
+    "space_6m": {
+        "amount_minor": 149_900,
+        "period_days": 180,
+        "device_limit": 8,
+        "currency": "RUB",
+        "enabled": True,
+        "description": "Virgo SPACE на 6 месяцев",
     },
     "vpn_30d": {
         "amount_minor": 29_900,
@@ -39,7 +79,8 @@ TARIFFS = {
         "device_limit": 5,
         "currency": "RUB",
         "enabled": True,
-        "description": "Максимальный комфорт и автоматический выбор сервера",
+        "test_only": True,
+        "description": "Технический тестовый тариф Lava",
     },
 }
 
@@ -68,6 +109,7 @@ def settings_factory() -> Callable[..., Settings]:
             "telegram_channel_url": "https://t.me/example_vpn_channel",
             "telegram_support_username": "example_vpn_support",
             "chrome_web_store_url": "https://chromewebstore.google.com/",
+            "legal_documents_base_url": "https://virgo.example.test/legal",
         }
         if overrides.get("app_env") == "production":
             values.update(
@@ -93,6 +135,7 @@ def settings_factory() -> Callable[..., Settings]:
                         "https://chromewebstore.google.com/detail/virgo/"
                         "abcdefghijklmnopabcdefghijklmnop"
                     ),
+                    "legal_documents_base_url": "https://virgo.vpn.example/legal",
                     "allowed_extension_origins_json": [
                         "chrome-extension://abcdefghijklmnopabcdefghijklmnop"
                     ],
@@ -111,6 +154,6 @@ def settings_factory() -> Callable[..., Settings]:
                 }
             )
         values.update(overrides)
-        return Settings(**values)
+        return Settings(_env_file=None, **values)
 
     return factory

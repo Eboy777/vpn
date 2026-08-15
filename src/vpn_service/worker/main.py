@@ -5,6 +5,7 @@ import logging
 import signal
 
 from vpn_service.application.pairing import PairingService
+from vpn_service.application.payments import PaymentService
 from vpn_service.application.telegram_bot import TelegramBotService
 from vpn_service.config import ProcessRole, Settings
 from vpn_service.external.admin_telegram import AdminTelegramNotifier
@@ -33,7 +34,8 @@ async def run() -> None:
     telegram = TelegramBotClient(settings)
     admin_telegram = AdminTelegramNotifier(settings)
     pairing = PairingService(database.sessions, settings)
-    telegram_bot = TelegramBotService(database.sessions, settings, pairing)
+    payments = PaymentService(database.sessions, settings)
+    telegram_bot = TelegramBotService(database.sessions, settings, pairing, payments)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for signal_name in (signal.SIGINT, signal.SIGTERM):

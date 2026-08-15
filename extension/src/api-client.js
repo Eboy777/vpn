@@ -69,6 +69,20 @@ export class ControlApiClient {
     });
   }
 
+  createPayment(deviceToken, tariffCode, {termsAccepted, recurringConsent}) {
+    return this.request("/api/payments/create", {
+      method: "POST",
+      token: deviceToken,
+      idempotencyKey: this.randomUUID(),
+      body: {
+        tariff_code: tariffCode,
+        email: null,
+        terms_accepted: termsAccepted,
+        recurring_consent: recurringConsent,
+      },
+    });
+  }
+
   lifecycle(event) {
     return this.request("/api/telemetry/lifecycle", {
       method: "POST",
@@ -96,7 +110,10 @@ export class ControlApiClient {
     return this.controlUrls.map((value) => new URL(value).hostname);
   }
 
-  async request(path, {method = "GET", token = null, body = undefined} = {}) {
+  async request(
+    path,
+    {method = "GET", token = null, body = undefined, idempotencyKey = null} = {},
+  ) {
     if (!path.startsWith("/")) {
       throw new Error("API path must be absolute");
     }
@@ -122,6 +139,7 @@ export class ControlApiClient {
           token,
           body,
           requestId,
+          idempotencyKey,
         });
         if (response.status === 429) {
           const retryAfterSeconds = parseRetryAfter(response.headers.get("Retry-After"));
@@ -154,12 +172,15 @@ export class ControlApiClient {
     throw lastError ?? new ControlApiError("Control API is unavailable");
   }
 
-  async fetchOnce(origin, path, {method, token, body, requestId}) {
+  async fetchOnce(origin, path, {method, token, body, requestId, idempotencyKey}) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.config.requestTimeoutMs);
     const headers = {"X-Request-ID": requestId};
     if (token) {
       headers.Authorization = `Bearer ${token}`;
+    }
+    if (idempotencyKey) {
+      headers["Idempotency-Key"] = idempotencyKey;
     }
     let serializedBody;
     if (body !== undefined) {

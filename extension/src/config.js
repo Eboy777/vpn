@@ -14,7 +14,7 @@ export const BUILD_CONFIG = Object.freeze({
   fallbackDelayMs: 250,
   statusAlarmMinutes: 1,
   controlOfflineGraceSeconds: 300,
-  userAgreementUrl: "",
+  userAgreementUrl: "https://api.virgo-vpn.site/legal/user-agreement",
   telegramBotUrl: "https://t.me/virgo1vpn_bot",
   telegramSupportUrl: "https://t.me/virgo1vpn_bot?start=support",
 });
