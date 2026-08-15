@@ -114,24 +114,24 @@ button { color: inherit; }
 }
 
 .tariffs { padding-bottom: 0; text-align: center; }
-.tariffs .tabs { margin: 8px 0; }
-.tariffs .tab { min-height: 41px; }
-.tariffs h1 { margin: 3px 0 10px; font-size: 27px; }
+.tariffs .tabs { margin: 8px 0 9px; }
+.tariffs .tab { min-height: 39px; }
+.tariffs h1 { margin: 3px 0 9px; font-size: 27px; }
 .section-lead { margin: 0 8px 18px; color: #cfcfcf; font-size: 13px; line-height: 1.45; }
-.plan-switch { display: grid; grid-template-columns: 1fr 1fr; width: 310px; margin: 0 auto; border: 1px solid rgba(255,255,255,.6); border-radius: 16px; background: #686868; transition: border-color .25s, box-shadow .25s; }
+.plan-switch { display: grid; grid-template-columns: 1fr 1fr; width: 304px; margin: 0 auto; border: 1px solid rgba(255,255,255,.6); border-radius: 14px; background: #686868; transition: border-color .25s, box-shadow .25s; }
 .plan-switch.space-active { border-color: rgba(61,179,255,.48); box-shadow: 0 0 9px rgba(38,166,255,.08); }
-.plan-switch-button { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 43px; padding: 8px 15px; border: 1px solid transparent; border-radius: 16px; background: transparent; color: #fff; font-size: 17px; font-weight: 900; cursor: pointer; transition: background .2s, border-color .2s, box-shadow .2s; }
+.plan-switch-button { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 5px 14px; border: 1px solid transparent; border-radius: 13px; background: transparent; color: #fff; font-size: 16px; font-weight: 900; cursor: pointer; transition: background .2s, border-color .2s, box-shadow .2s; }
 .plan-switch-button:focus-visible { outline: 1px solid rgba(255,255,255,.72); outline-offset: -4px; }
 .plan-switch-button.selected { border-color: rgba(255,255,255,.78); background: #292929; box-shadow: 0 6px 15px rgba(0,0,0,.24); }
 .plan-switch.space-active .space-switch.selected { border-color: rgba(88,190,248,.68); box-shadow: 0 0 7px rgba(38,166,255,.1); }
-.plan-notification { display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: #e02027; color: #fff; font-size: 8px; font-weight: 900; line-height: 1; box-shadow: 0 0 5px rgba(224,32,39,.22); }
-.tariff-panel { margin-top: 0; }
-.plan-summary { width: 338px; margin: 0 auto; padding: 13px 17px 12px; border-radius: 0 0 19px 19px; background: linear-gradient(155deg, rgba(18,18,18,.99), rgba(9,9,9,.98)); text-align: left; }
+.plan-notification { display: grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; background: #e02027; color: #fff; font-size: 8px; font-weight: 900; line-height: 1; box-shadow: 0 0 5px rgba(224,32,39,.22); }
+.tariff-panel { margin-top: 0; padding-top: 5px; }
+.plan-summary { width: 338px; margin: 0 auto; padding: 12px 17px 13px; border-radius: 18px; background: linear-gradient(155deg, rgba(18,18,18,.99), rgba(9,9,9,.98)); text-align: left; }
 .space-panel .plan-summary { background: radial-gradient(circle at 88% 8%, rgba(48,150,222,.1), transparent 38%), linear-gradient(155deg, rgba(18,18,18,.99), rgba(9,9,9,.98)); box-shadow: 0 10px 22px rgba(39,158,232,.07); }
-.plan-kicker { display: block; margin-bottom: 3px; color: #aaa; font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.plan-kicker { display: block; margin-bottom: 3px; color: #b7b7b7; font-size: 8.7px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .plan-summary h2 { margin: 0; font-size: 22px; letter-spacing: -.03em; }
-.tariff-description { margin: 6px 0 0; color: #f0f0f0; font-size: 10.5px; font-weight: 700; line-height: 1.35; }
-.plan-summary ul { margin: 8px 0 0; padding-left: 17px; color: #e4e4e4; font-size: 10.5px; line-height: 1.35; }
+.tariff-description { margin: 6px 0 0; color: #f0f0f0; font-size: 11.2px; font-weight: 700; line-height: 1.35; }
+.plan-summary ul { margin: 8px 0 0; padding-left: 17px; color: #e8e8e8; font-size: 11.2px; line-height: 1.35; }
 .plan-summary li + li { margin-top: 3px; }
 .pricing-card { margin-top: 8px; padding: 10px; border-radius: 18px; background: linear-gradient(180deg, rgba(25,25,25,.98), rgba(48,48,48,.94)); box-shadow: 0 10px 22px rgba(0,0,0,.22); }
 .space-panel .pricing-card { box-shadow: 0 13px 27px rgba(0,0,0,.24), 0 0 16px rgba(39,158,232,.08); }
@@ -140,14 +140,14 @@ button { color: inherit; }
 .period-option:hover { border-color: #858585; transform: translateY(-1px); }
 .period-option.selected { border-color: #fff; background: #f1f1f1; color: #171717; box-shadow: 0 7px 18px rgba(0,0,0,.25); }
 .period-option span, .period-option strong, .period-option small { display: block; }
-.period-option span { font-size: 9.5px; font-weight: 750; }
+.period-option span { font-size: 10px; font-weight: 750; }
 .period-option strong { margin-top: 4px; font-size: 18px; letter-spacing: -.02em; }
-.period-option small { margin-top: 4px; color: #b3b3b3; font-size: 7.5px; line-height: 1.15; }
+.period-option small { margin-top: 4px; color: #bdbdbd; font-size: 8px; line-height: 1.15; }
 .period-option.selected small { color: #4d4d4d; }
 .discount-badge { position: absolute; z-index: 1; top: -6px; right: -3px; display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: #ffe000; color: #171717; font-size: 7px; font-style: normal; font-weight: 900; box-shadow: 0 3px 8px rgba(0,0,0,.2); }
 .tariff-select-button { min-height: 40px; margin-top: 9px; padding: 9px 13px; border-radius: 14px; font-size: 12px; box-shadow: 0 7px 16px rgba(252,36,43,.15); }
 .space-panel .tariff-select-button { background: linear-gradient(90deg, #ff242d, #ff4850); }
-.payment-consents { margin-top: 8px; padding: 1px 1px 0; color: #c9c9c9; font-size: 8.5px; line-height: 1.3; text-align: left; }
+.payment-consents { margin-top: 9px; padding: 1px 1px 0; color: #d2d2d2; font-size: 9.2px; line-height: 1.35; text-align: left; }
 .consent-row { display: grid; grid-template-columns: 15px minmax(0, 1fr); gap: 6px; align-items: start; cursor: pointer; }
 .payment-consents input { width: 13px; height: 13px; margin: 0; accent-color: #ff2936; cursor: pointer; }
 .payment-consents a { color: #e8e8e8; text-decoration-thickness: 1px; text-underline-offset: 2px; }
