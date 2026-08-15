@@ -4,6 +4,8 @@ export function initialState(deviceId = crypto.randomUUID()) {
   return {
     schemaVersion: 1,
     deviceId,
+    legalConsentVersion: null,
+    legalConsentAcceptedAt: null,
     deviceToken: null,
     pairing: null,
     vpnEnabled: false,
@@ -41,6 +43,12 @@ export function createStateStore(storageArea = chrome.storage.local) {
         accessSafetyDeadline: Number(stored.accessSafetyDeadline) || null,
         connectionAttemptStartedAt: Number(stored.connectionAttemptStartedAt) || null,
         hadSuccessfulConnection: Boolean(stored.hadSuccessfulConnection),
+        legalConsentVersion: typeof stored.legalConsentVersion === "string"
+          ? stored.legalConsentVersion
+          : null,
+        legalConsentAcceptedAt: typeof stored.legalConsentAcceptedAt === "string"
+          ? stored.legalConsentAcceptedAt
+          : null,
         discoveryDocument: stored.discoveryDocument && typeof stored.discoveryDocument === "object"
           ? structuredClone(stored.discoveryDocument)
           : null,
@@ -69,6 +77,8 @@ export function createStateStore(storageArea = chrome.storage.local) {
         controlRateLimitedUntil,
         discoveryDocument: current.discoveryDocument,
         discoveryRefreshAt: current.discoveryRefreshAt,
+        legalConsentVersion: current.legalConsentVersion,
+        legalConsentAcceptedAt: current.legalConsentAcceptedAt,
       };
       await storageArea.set({[STORAGE_KEY]: reset});
       return reset;
@@ -83,6 +93,7 @@ export function publicView(state, extensionVersion = "1.0.0") {
   }
   return {
     paired: Boolean(state.deviceToken),
+    legalConsentAccepted: Boolean(state.legalConsentVersion && state.legalConsentAcceptedAt),
     pairing: state.pairing && {
       telegramUrl: state.pairing.telegramUrl,
       expiresAt: state.pairing.expiresAt,

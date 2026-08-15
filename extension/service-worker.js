@@ -13,6 +13,7 @@ import {initializePairingWithRecovery} from "./src/pairing-recovery.js";
 const CONFIG = validateBuildConfig(BUILD_CONFIG);
 const STATUS_ALARM = "virgo-status-refresh";
 const ACCESS_EXPIRY_ALARM = "virgo-access-expiry-safety";
+const LEGAL_CONSENT_VERSION = "2026-08-15";
 const store = createStateStore();
 const api = new ControlApiClient({
   config: CONFIG,
@@ -30,14 +31,20 @@ let discoveryPromise = null;
 chrome.runtime.onInstalled.addListener((details) => {
   const eventType = details.reason === "install" ? "installed" : "updated";
   void enqueueOperation(async () => {
-    await reportLifecycle(eventType).catch(() => undefined);
+    const state = await store.read();
+    if (state.legalConsentVersion) {
+      await reportLifecycle(eventType).catch(() => undefined);
+    }
     await bootstrap();
   });
 });
 
 chrome.runtime.onStartup.addListener(() => {
   void enqueueOperation(async () => {
-    await reportLifecycle("launched").catch(() => undefined);
+    const state = await store.read();
+    if (state.legalConsentVersion) {
+      await reportLifecycle("launched").catch(() => undefined);
+    }
     await bootstrap();
   });
 });
@@ -95,8 +102,14 @@ function enqueueOperation(operation) {
 }
 
 async function bootstrap() {
-  await refreshDiscoveryIfDue().catch(() => undefined);
   const state = await store.read();
+  if (!state.legalConsentVersion) {
+    await chrome.alarms.clear(STATUS_ALARM);
+    await chrome.alarms.clear(ACCESS_EXPIRY_ALARM);
+    await updateBadge(state);
+    return;
+  }
+  await refreshDiscoveryIfDue().catch(() => undefined);
   if (state.vpnEnabled && state.deviceToken) {
     await scheduleAccessExpiryAlarm(state.status);
     if (state.nextStatusCheckAt <= Date.now()) {
@@ -127,6 +140,9 @@ async function handleMessage(message) {
   }
   switch (message.type) {
     case "GET_VIEW":
+      return view();
+    case "ACCEPT_LEGAL":
+      await acceptLegalConsent(message.version);
       return view();
     case "START_PAIRING":
       await startPairing();
@@ -179,9 +195,26 @@ async function view() {
   return publicView(state, chrome.runtime.getManifest().version);
 }
 
+async function acceptLegalConsent(version) {
+  if (version !== LEGAL_CONSENT_VERSION) {
+    throw new Error("Версия соглашения устарела. Обновите расширение");
+  }
+  const state = await store.read();
+  if (state.legalConsentVersion === version && state.legalConsentAcceptedAt) return;
+  await store.write({
+    ...state,
+    legalConsentVersion: version,
+    legalConsentAcceptedAt: new Date().toISOString(),
+  });
+  await reportLifecycle("installed").catch(() => undefined);
+}
+
 async function startPairing() {
-  await refreshDiscoveryIfDue().catch(() => undefined);
   let state = await store.read();
+  if (!state.legalConsentVersion || !state.legalConsentAcceptedAt) {
+    throw new Error("Сначала примите соглашение и политику конфиденциальности");
+  }
+  await refreshDiscoveryIfDue().catch(() => undefined);
   if (state.deviceToken) return;
   const initialized = await initializePairingWithRecovery(api, store);
   state = initialized.state;

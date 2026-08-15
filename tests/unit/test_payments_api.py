@@ -165,6 +165,8 @@ async def test_legal_document_is_public(payment_client: httpx.AsyncClient) -> No
 
     assert response.status_code == 200
     assert "Пользовательское соглашение" in response.text
+    assert "<h1>Пользовательское соглашение" in response.text
+    assert "**[" not in response.text
     assert response.headers["content-type"].startswith("text/html")
 
 
@@ -173,3 +175,25 @@ async def test_unknown_legal_document_is_not_exposed(payment_client: httpx.Async
     response = await payment_client.get("/legal/not-a-document")
 
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "document",
+    [
+        "user-agreement",
+        "privacy-policy",
+        "personal-data-consent",
+        "recurring-payment-consent",
+        "refund-and-cancellation",
+    ],
+)
+async def test_legal_documents_have_no_draft_placeholders(
+    payment_client: httpx.AsyncClient,
+    document: str,
+) -> None:
+    response = await payment_client.get(f"/legal/{document}")
+
+    assert response.status_code == 200
+    for marker in ("**[", "[ФИО", "[ИНН", "[адрес", "[URL", "[заполнить"):
+        assert marker not in response.text

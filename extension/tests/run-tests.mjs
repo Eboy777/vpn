@@ -255,6 +255,16 @@ test("popup view receives account ID but never proxy credentials or device ID", 
   assert.equal("credentials" in view.status.vpn, false);
 });
 
+test("popup exposes legal consent state without exposing its timestamp", () => {
+  const state = initialState("00000000-0000-4000-8000-000000000001");
+  assert.equal(publicView(state).legalConsentAccepted, false);
+  state.legalConsentVersion = "2026-08-15";
+  state.legalConsentAcceptedAt = "2026-08-15T00:00:00.000Z";
+  const view = publicView(state);
+  assert.equal(view.legalConsentAccepted, true);
+  assert.equal("legalConsentAcceptedAt" in view, false);
+});
+
 test("status conversion requires node and credentials together", () => {
   assert.equal(proxyFromStatus({vpn: {available: false}}), null);
   assert.deepEqual(proxyFromStatus({
@@ -325,6 +335,11 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(html.includes("<dt>Тема</dt>"), false);
   assert.equal(html.includes('<dt>ID</dt><dd id="device-id">'), true);
   assert.equal(html.includes("Пользовательское соглашение"), true);
+  assert.equal(html.includes('id="pairing-consent"'), true);
+  assert.equal(html.includes('id="qr-consent-hint"'), false);
+  assert.equal(html.includes('class="qr-consent-hint"'), true);
+  assert.equal(html.includes("/legal/personal-data-consent"), true);
+  assert.equal(html.includes('id="telegram-link" href="#" aria-disabled="true"'), true);
   assert.equal(html.includes("Выбрать сервер:"), true);
   assert.equal(html.includes("Virgo FLOW"), true);
   assert.equal(html.includes("Virgo SPACE"), true);
@@ -351,6 +366,8 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(script.includes("BUILD_CONFIG.telegramSupportUrl"), true);
   assert.equal(script.includes("chrome.tabs.create({url: parsed.href})"), true);
   assert.equal(script.includes("Поставьте галочку согласия с политикой конфиденциальности"), true);
+  assert.equal(script.includes('send("ACCEPT_LEGAL", {version: "2026-08-15"})'), true);
+  assert.equal(script.includes('send("START_PAIRING")'), true);
   assert.equal(html.includes('class="consent-row"'), true);
   assert.equal(html.includes('id="payment-consent"'), true);
   assert.equal(html.includes('id="payment-email-dialog"'), true);
