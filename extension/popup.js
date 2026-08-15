@@ -183,7 +183,7 @@ function render() {
   if (viewModel.paired && !["dashboard", "tariffs", "locations", "settings"].includes(screen)) {
     screen = "dashboard";
   }
-  appShell.classList.toggle("scrollable", ["tariffs", "locations"].includes(screen));
+  appShell.classList.toggle("scrollable", screen === "locations");
   appShell.scrollTop = 0;
   for (const element of screens) element.hidden = element.dataset.screen !== screen;
 
