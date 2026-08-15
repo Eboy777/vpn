@@ -348,6 +348,9 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(script.includes("countryFlag(node?.country_code)"), true);
   assert.equal(script.includes("BUILD_CONFIG.telegramBotUrl"), true);
   assert.equal(script.includes("BUILD_CONFIG.telegramSupportUrl"), true);
+  assert.equal(script.includes("chrome.tabs.create({url: parsed.href})"), true);
+  assert.equal(script.includes("Поставьте галочки согласия с политикой конфиденциальности"), true);
+  assert.equal(html.includes('class="consent-row"'), true);
   assert.equal(script.includes('case "select-period"'), true);
   assert.equal(configScript.includes("?start=support"), true);
   assert.equal(css.includes(".renewal-button.renewal-quiet"), true);

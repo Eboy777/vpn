@@ -61,7 +61,7 @@ async function act(action, actionElement = null) {
       render();
       return;
     case "help":
-      openExternal(BUILD_CONFIG.telegramSupportUrl);
+      await openExternal(BUILD_CONFIG.telegramSupportUrl);
       return;
     case "locations":
       if (!viewModel.status?.access?.can_select_node) return;
@@ -80,7 +80,7 @@ async function act(action, actionElement = null) {
       });
       return;
     case "telegram":
-      openExternal(BUILD_CONFIG.telegramBotUrl);
+      await openExternal(BUILD_CONFIG.telegramBotUrl);
       return;
     case "select-period": {
       const card = actionElement?.closest(".tariff-card");
@@ -102,7 +102,8 @@ async function act(action, actionElement = null) {
       const termsAccepted = Boolean(document.querySelector("#payment-terms")?.checked);
       const recurringConsent = Boolean(document.querySelector("#payment-recurring")?.checked);
       if (!termsAccepted || !recurringConsent) {
-        showNotice("Подтвердите условия и автопродление перед оплатой.");
+        document.querySelector("#payment-consents")?.classList.add("attention");
+        showNotice("Поставьте галочки согласия с политикой конфиденциальности и автопродлением внизу страницы. Пролистайте вниз.");
         return;
       }
       await runBusy(async () => {
@@ -111,7 +112,7 @@ async function act(action, actionElement = null) {
           termsAccepted,
           recurringConsent,
         });
-        openExternal(payment.payment_url);
+        await openExternal(payment.payment_url);
       });
       return;
     }
@@ -387,12 +388,18 @@ function previewModel(screen) {
   };
 }
 
-function openExternal(url) {
+async function openExternal(url) {
   if (!url) {
     showNotice("Ссылка на Telegram будет добавлена перед публикацией.");
     return;
   }
-  window.open(url, "_blank", "noopener,noreferrer");
+  const parsed = new URL(url);
+  if (parsed.protocol !== "https:") throw new Error("Получена небезопасная ссылка.");
+  if (globalThis.chrome?.tabs?.create) {
+    await chrome.tabs.create({url: parsed.href});
+    return;
+  }
+  window.location.assign(parsed.href);
 }
 
 function setButtonsDisabled(disabled) {

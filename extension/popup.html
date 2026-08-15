@@ -133,9 +133,19 @@
           <p>Технический тариф для проверки платежей. Не является публичным предложением.</p>
           <button class="secondary-button test-payment-button" data-action="create-payment" data-tariff-code="vpn_30d" type="button">Открыть тестовую оплату</button>
         </details>
-        <div class="payment-consents">
-          <label><input id="payment-terms" type="checkbox"> Принимаю <a href="https://api.virgo-vpn.site/legal/user-agreement" target="_blank" rel="noreferrer">пользовательское соглашение</a>, <a href="https://api.virgo-vpn.site/legal/privacy-policy" target="_blank" rel="noreferrer">политику конфиденциальности</a> и <a href="https://api.virgo-vpn.site/legal/refund-and-cancellation" target="_blank" rel="noreferrer">правила возврата</a>.</label>
-          <label><input id="payment-recurring" type="checkbox"> Принимаю <a href="https://api.virgo-vpn.site/legal/recurring-payment-consent" target="_blank" rel="noreferrer">условия автопродления</a> и регулярного списания по цене и периоду, указанным на странице Lava. Отменить можно в Telegram-боте.</label>
+        <div class="payment-consents" id="payment-consents" aria-labelledby="payment-consents-title">
+          <div class="consent-heading">
+            <strong id="payment-consents-title">Перед оплатой</strong>
+            <span>Нужно подтвердить оба пункта</span>
+          </div>
+          <label class="consent-row" for="payment-terms">
+            <input id="payment-terms" type="checkbox">
+            <span>Принимаю <a href="https://api.virgo-vpn.site/legal/user-agreement" target="_blank" rel="noreferrer">пользовательское соглашение</a>, <a href="https://api.virgo-vpn.site/legal/privacy-policy" target="_blank" rel="noreferrer">политику конфиденциальности</a> и <a href="https://api.virgo-vpn.site/legal/refund-and-cancellation" target="_blank" rel="noreferrer">правила возврата</a>.</span>
+          </label>
+          <label class="consent-row" for="payment-recurring">
+            <input id="payment-recurring" type="checkbox">
+            <span>Принимаю <a href="https://api.virgo-vpn.site/legal/recurring-payment-consent" target="_blank" rel="noreferrer">условия автопродления</a> и регулярного списания по цене и периоду, указанным на странице Lava. Отменить подписку можно в Telegram-боте.</span>
+          </label>
         </div>
       </section>
 
