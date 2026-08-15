@@ -44,7 +44,9 @@ button { color: inherit; }
 
 .icon-nav { display: flex; gap: 8px; }
 .round-icon { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 50%; background: #050505; font-weight: 800; cursor: pointer; }
-.telegram-icon { padding: 0 3px 2px 0; background: #27a7e7; transform: rotate(-35deg); }
+.telegram-icon { border: 1px solid rgba(255,255,255,.38); background: linear-gradient(145deg, #35b8f3, #168dcc); box-shadow: 0 5px 12px rgba(18,142,204,.28), inset 0 1px 0 rgba(255,255,255,.28); transition: transform .15s, box-shadow .15s; }
+.telegram-icon:hover { transform: translateY(-1px); box-shadow: 0 7px 15px rgba(18,142,204,.36), inset 0 1px 0 rgba(255,255,255,.32); }
+.telegram-icon svg { width: 22px; height: 22px; fill: #fff; filter: drop-shadow(0 1px 1px rgba(0,0,0,.18)); }
 .help-icon { border: 2px solid #eee; background: #fff; color: #050505; font-size: 25px; }
 .settings-icon { font-size: 23px; }
 
@@ -114,66 +116,44 @@ button { color: inherit; }
 .tariffs { padding-bottom: 10px; text-align: center; }
 .tariffs h1 { margin-bottom: 8px; font-size: 30px; }
 .section-lead { margin: 0 8px 18px; color: #cfcfcf; font-size: 13px; line-height: 1.45; }
-.tariff-card {
-  position: relative;
-  overflow: hidden;
-  padding: 20px;
-  border: 1px solid rgba(255,255,255,.15);
-  border-radius: 24px;
-  background: linear-gradient(155deg, rgba(28,28,28,.98), rgba(12,12,12,.98));
-  box-shadow: 0 15px 30px rgba(0,0,0,.24);
-  text-align: left;
-}
-.tariff-card + .tariff-card { margin-top: 16px; }
-.tariff-card.recommended {
-  margin-top: 22px;
-  padding-top: 20px;
-  border-color: rgba(255,255,255,.72);
-  box-shadow: 0 18px 38px rgba(0,0,0,.35), inset 0 0 28px rgba(255,255,255,.04);
-}
-.space-card::before {
-  position: absolute;
-  top: -80px;
-  right: -70px;
-  width: 190px;
-  height: 190px;
-  border-radius: 50%;
-  background: rgba(77,143,255,.16);
-  filter: blur(3px);
-  content: "";
-}
-.tariff-heading { position: relative; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
-.plan-kicker { display: block; margin-bottom: 4px; color: #aaa; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-.tariff-card h2 { margin: 0; font-size: 27px; letter-spacing: -.03em; }
-.device-badge { flex: none; padding: 6px 9px; border: 1px solid rgba(255,255,255,.24); border-radius: 14px; color: #e8e8e8; font-size: 10px; font-weight: 700; }
-.tariff-description { position: relative; margin: 13px 0 0; color: #d4d4d4; font-size: 12px; line-height: 1.45; }
-.tariff-card ul { position: relative; margin: 14px 0 0; padding-left: 18px; color: #f1f1f1; font-size: 12px; line-height: 1.45; }
-.tariff-card li + li { margin-top: 5px; }
-.recommend-badge { position: relative; z-index: 2; display: inline-flex; align-items: center; min-height: 25px; margin-bottom: 13px; padding: 6px 13px; border-radius: 14px; background: #f5f5f5; color: #111; font-size: 10px; font-weight: 900; letter-spacing: .06em; line-height: 1; text-transform: uppercase; }
-.period-options { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 17px; }
-.period-option { min-width: 0; min-height: 78px; padding: 9px 5px; border: 1px solid #3b3b3b; border-radius: 15px; background: rgba(255,255,255,.035); color: #ddd; cursor: pointer; text-align: center; transition: border-color .15s, background .15s, transform .15s; }
+.plan-switch { display: grid; grid-template-columns: 1fr 1fr; margin-top: 20px; border: 1px solid rgba(255,255,255,.6); border-radius: 18px; background: #686868; transition: border-color .25s, box-shadow .25s; }
+.plan-switch.space-active { border-color: rgba(61,179,255,.48); box-shadow: 0 0 9px rgba(38,166,255,.08); }
+.plan-switch-button { position: relative; display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 49px; padding: 10px 18px; border: 1px solid transparent; border-radius: 18px; background: transparent; color: #fff; font-size: 18px; font-weight: 900; cursor: pointer; transition: background .2s, border-color .2s, box-shadow .2s; }
+.plan-switch-button:focus-visible { outline: 1px solid rgba(255,255,255,.72); outline-offset: -4px; }
+.plan-switch-button.selected { border-color: rgba(255,255,255,.78); background: #292929; box-shadow: 0 6px 15px rgba(0,0,0,.24); }
+.plan-switch.space-active .space-switch.selected { border-color: rgba(88,190,248,.68); box-shadow: 0 0 7px rgba(38,166,255,.1); }
+.plan-notification { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #e02027; color: #fff; font-size: 11px; font-weight: 900; line-height: 1; box-shadow: 0 0 7px rgba(224,32,39,.28); }
+.tariff-panel { margin-top: 0; }
+.plan-summary { padding: 19px 20px 20px; border-radius: 0 0 21px 21px; background: linear-gradient(155deg, rgba(18,18,18,.99), rgba(9,9,9,.98)); text-align: left; }
+.space-panel .plan-summary { background: radial-gradient(circle at 88% 8%, rgba(48,150,222,.1), transparent 38%), linear-gradient(155deg, rgba(18,18,18,.99), rgba(9,9,9,.98)); box-shadow: 0 10px 22px rgba(39,158,232,.07); }
+.plan-kicker { display: block; margin-bottom: 5px; color: #aaa; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.plan-summary h2 { margin: 0; font-size: 26px; letter-spacing: -.03em; }
+.tariff-description { margin: 11px 0 0; color: #f0f0f0; font-size: 12px; font-weight: 700; line-height: 1.45; }
+.plan-summary ul { margin: 13px 0 0; padding-left: 18px; color: #e4e4e4; font-size: 12px; line-height: 1.45; }
+.plan-summary li + li { margin-top: 6px; }
+.pricing-card { margin-top: 14px; padding: 14px; border-radius: 21px; background: linear-gradient(180deg, rgba(25,25,25,.98), rgba(48,48,48,.94)); box-shadow: 0 13px 27px rgba(0,0,0,.24); }
+.space-panel .pricing-card { box-shadow: 0 13px 27px rgba(0,0,0,.24), 0 0 16px rgba(39,158,232,.08); }
+.period-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.period-option { position: relative; min-width: 0; min-height: 91px; padding: 14px 5px 10px; border: 1px solid #303030; border-radius: 17px; background: #0d0d0d; color: #eee; cursor: pointer; text-align: center; transition: border-color .15s, background .15s, transform .15s; }
 .period-option:hover { border-color: #858585; transform: translateY(-1px); }
-.period-option.selected { border-color: #fff; background: #f2f2f2; color: #111; box-shadow: 0 7px 18px rgba(0,0,0,.25); }
+.period-option.selected { border-color: #fff; background: #f1f1f1; color: #171717; box-shadow: 0 7px 18px rgba(0,0,0,.25); }
 .period-option span, .period-option strong, .period-option small { display: block; }
-.period-option span { font-size: 10px; font-weight: 700; }
-.period-option strong { margin-top: 4px; font-size: 17px; letter-spacing: -.02em; }
-.period-option small { margin-top: 3px; color: #9f9f9f; font-size: 8px; line-height: 1.2; }
+.period-option span { font-size: 11px; font-weight: 750; }
+.period-option strong { margin-top: 7px; font-size: 19px; letter-spacing: -.02em; }
+.period-option small { margin-top: 7px; color: #b3b3b3; font-size: 8px; line-height: 1.2; }
 .period-option.selected small { color: #4d4d4d; }
-.tariff-select-button { position: relative; min-height: 48px; margin-top: 13px; border-radius: 16px; }
-.space-card .tariff-select-button { background: linear-gradient(90deg, #ff242d, #ff4850); box-shadow: 0 9px 20px rgba(255,36,45,.18); }
+.discount-badge { position: absolute; z-index: 1; top: -9px; right: -5px; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: #ffe000; color: #171717; font-size: 9px; font-style: normal; font-weight: 900; box-shadow: 0 4px 10px rgba(0,0,0,.22); }
+.tariff-select-button { min-height: 48px; margin-top: 14px; border-radius: 16px; box-shadow: 0 8px 18px rgba(252,36,43,.16); }
+.space-panel .tariff-select-button { background: linear-gradient(90deg, #ff242d, #ff4850); }
 .test-tariff-card { margin-top: 14px; padding: 13px 15px; border: 1px dashed #5d5d5d; border-radius: 17px; background: rgba(10,10,10,.42); color: #cfcfcf; text-align: left; }
 .test-tariff-card summary { cursor: pointer; font-size: 12px; font-weight: 800; }
 .test-tariff-card p { margin: 10px 0; color: #aaa; font-size: 11px; line-height: 1.4; }
 .test-payment-button { min-height: 42px; margin-top: 0; border-radius: 14px; font-size: 12px; }
-.payment-consents { display: grid; gap: 9px; margin-top: 16px; padding: 15px; border: 1px solid rgba(255,255,255,.24); border-radius: 18px; background: rgba(10,10,10,.5); color: #d8d8d8; font-size: 11px; line-height: 1.45; text-align: left; transition: border-color .2s, box-shadow .2s; }
-.consent-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 2px; }
-.consent-heading strong { color: #fff; font-size: 13px; }
-.consent-heading span { color: #999; font-size: 9px; text-align: right; }
-.consent-row { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 9px; align-items: start; padding: 10px; border: 1px solid rgba(255,255,255,.1); border-radius: 13px; background: rgba(255,255,255,.035); cursor: pointer; }
-.consent-row:hover { border-color: rgba(255,255,255,.28); background: rgba(255,255,255,.06); }
-.payment-consents input { width: 18px; height: 18px; margin: 0; accent-color: #ff2936; cursor: pointer; }
-.payment-consents a { color: #fff; font-weight: 700; text-decoration-thickness: 1px; text-underline-offset: 3px; }
-.payment-consents.attention { border-color: #ff5c63; box-shadow: 0 0 0 2px rgba(255,41,54,.16), 0 9px 24px rgba(0,0,0,.22); }
+.payment-consents { margin-top: 14px; padding: 2px 1px 6px; color: #c9c9c9; font-size: 10px; line-height: 1.45; text-align: left; }
+.consent-row { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: start; cursor: pointer; }
+.payment-consents input { width: 16px; height: 16px; margin: 0; accent-color: #ff2936; cursor: pointer; }
+.payment-consents a { color: #e8e8e8; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.payment-consents.attention { color: #fff; }
 
 .locations { padding-top: 24px; text-align: center; }
 .locations h1 { margin: 10px 0 6px; font-size: 28px; }

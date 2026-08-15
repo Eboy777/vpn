@@ -14,7 +14,11 @@
           <span class="brand-name">Virgo</span>
         </button>
         <nav class="icon-nav" id="icon-nav" aria-label="Быстрые действия">
-          <button class="round-icon telegram-icon" data-action="telegram" type="button" title="Telegram" aria-label="Telegram">➤</button>
+          <button class="round-icon telegram-icon" data-action="telegram" type="button" title="Telegram" aria-label="Telegram">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20.7 3.4 2.9 10.3c-1.2.5-1.2 1.1-.2 1.4l4.6 1.4 1.7 5.3c.2.6.1.8.7.8.5 0 .7-.2 1-.5l2.2-2.1 4.6 3.4c.9.5 1.5.3 1.7-.8l3-14.2c.3-1.4-.5-2-1.5-1.6ZM8 12.8l10.4-6.6c.5-.3.9-.1.5.2l-8.6 7.8-.3 3.3-2-4.7Z"/>
+            </svg>
+          </button>
           <button class="round-icon help-icon" data-action="help" type="button" title="Помощь" aria-label="Помощь">?</button>
           <button class="round-icon settings-icon" data-action="settings" type="button" title="Настройки" aria-label="Настройки">⚙</button>
         </nav>
@@ -42,7 +46,7 @@
       <section class="screen dashboard" data-screen="dashboard" hidden>
         <div class="tabs" role="tablist">
           <button class="tab active" data-action="main" type="button" role="tab">Главная</button>
-          <button class="tab" data-action="tariffs" type="button" role="tab">Тариф</button>
+          <button class="tab" data-action="tariffs" type="button" role="tab">Тарифы</button>
         </div>
         <div class="power-wrap">
           <button class="power-button" id="power-button" data-action="toggle-vpn" type="button" aria-pressed="false">
@@ -71,80 +75,79 @@
       <section class="screen tariffs" data-screen="tariffs" hidden>
         <div class="tabs" role="tablist">
           <button class="tab" data-action="main" type="button" role="tab">Главная</button>
-          <button class="tab active" data-action="tariffs" type="button" role="tab">Тариф</button>
+          <button class="tab active" data-action="tariffs" type="button" role="tab">Тарифы</button>
         </div>
         <h1>Выберите тариф</h1>
         <p class="section-lead">Цена фиксируется на выбранный период. Автопродление можно отключить в любой момент.</p>
-        <article class="tariff-card flow-card" data-plan="flow">
-          <div class="tariff-heading">
-            <div>
-              <span class="plan-kicker">Лёгкий старт</span>
-              <h2>Virgo FLOW</h2>
+        <div class="plan-switch" id="plan-switch" role="tablist" aria-label="Тарифный план">
+          <button class="plan-switch-button selected" data-action="select-plan" data-plan="flow" type="button" role="tab" aria-selected="true">FLOW</button>
+          <button class="plan-switch-button space-switch" data-action="select-plan" data-plan="space" type="button" role="tab" aria-selected="false">
+            <span>SPACE</span><span class="plan-notification" aria-label="Рекомендуемый тариф">1</span>
+          </button>
+        </div>
+
+        <section class="tariff-panel flow-panel" data-tariff-panel="flow" role="tabpanel">
+          <article class="plan-summary">
+            <span class="plan-kicker">Лёгкий старт</span>
+            <h2>Virgo FLOW</h2>
+            <p class="tariff-description">Для базовых задач и социальных сетей.</p>
+            <ul class="tariff-benefits">
+              <li>Увеличенный лимит скорости</li>
+              <li>До 4 устройств</li>
+              <li>Поддержка 24/7</li>
+            </ul>
+          </article>
+          <div class="pricing-card">
+            <div class="period-options" role="radiogroup" aria-label="Период Virgo FLOW">
+              <button class="period-option selected" data-action="select-period" data-plan="flow" data-tariff-code="flow_1m" type="button" role="radio" aria-checked="true">
+                <span>1 месяц</span><strong>299 ₽</strong><small>299 ₽/мес.</small>
+              </button>
+              <button class="period-option" data-action="select-period" data-plan="flow" data-tariff-code="flow_3m" type="button" role="radio" aria-checked="false">
+                <em class="discount-badge">−44%</em><span>3 месяца</span><strong>499 ₽</strong><small>166 ₽/мес.</small>
+              </button>
+              <button class="period-option" data-action="select-period" data-plan="flow" data-tariff-code="flow_6m" type="button" role="radio" aria-checked="false">
+                <em class="discount-badge">−55%</em><span>6 месяцев</span><strong>799 ₽</strong><small>133 ₽/мес.</small>
+              </button>
             </div>
-            <span class="device-badge">4 устройства</span>
+            <button class="danger-button tariff-select-button plan-payment-button" data-action="create-payment" data-plan="flow" data-tariff-code="flow_1m" type="button">Выбрать FLOW · 1 месяц</button>
           </div>
-          <p class="tariff-description">Для базовых задач и социальных сетей.</p>
-          <ul class="tariff-benefits">
-            <li>Быстрое подключение без ограничений</li>
-            <li>Поддержка 24/7</li>
-          </ul>
-          <div class="period-options" role="radiogroup" aria-label="Период Virgo FLOW">
-            <button class="period-option selected" data-action="select-period" data-plan="flow" data-tariff-code="flow_1m" type="button" role="radio" aria-checked="true">
-              <span>1 месяц</span><strong>299 ₽</strong><small>299 ₽/мес.</small>
-            </button>
-            <button class="period-option" data-action="select-period" data-plan="flow" data-tariff-code="flow_3m" type="button" role="radio" aria-checked="false">
-              <span>3 месяца</span><strong>499 ₽</strong><small>166 ₽/мес. · −44%</small>
-            </button>
-            <button class="period-option" data-action="select-period" data-plan="flow" data-tariff-code="flow_6m" type="button" role="radio" aria-checked="false">
-              <span>6 месяцев</span><strong>799 ₽</strong><small>133 ₽/мес. · −55%</small>
-            </button>
-          </div>
-          <button class="danger-button tariff-select-button plan-payment-button" data-action="create-payment" data-plan="flow" data-tariff-code="flow_1m" type="button">Выбрать FLOW · 1 месяц</button>
-        </article>
-        <article class="tariff-card space-card recommended" data-plan="space">
-          <span class="recommend-badge">Рекомендуем</span>
-          <div class="tariff-heading">
-            <div>
-              <span class="plan-kicker">Максимум возможностей</span>
-              <h2>Virgo SPACE</h2>
+        </section>
+
+        <section class="tariff-panel space-panel" data-tariff-panel="space" role="tabpanel" hidden>
+          <article class="plan-summary">
+            <span class="plan-kicker">Максимум возможностей</span>
+            <h2>Virgo SPACE</h2>
+            <p class="tariff-description">Для семьи, 4K-видео, игр и стабильной работы в час пик.</p>
+            <ul class="tariff-benefits">
+              <li>До 8 устройств</li>
+              <li>Максимальная скорость и выделенные линии</li>
+              <li>Автовыбор лучшего сервера</li>
+            </ul>
+          </article>
+          <div class="pricing-card">
+            <div class="period-options" role="radiogroup" aria-label="Период Virgo SPACE">
+              <button class="period-option" data-action="select-period" data-plan="space" data-tariff-code="space_1m" type="button" role="radio" aria-checked="false">
+                <span>1 месяц</span><strong>499 ₽</strong><small>499 ₽/мес.</small>
+              </button>
+              <button class="period-option selected" data-action="select-period" data-plan="space" data-tariff-code="space_3m" type="button" role="radio" aria-checked="true">
+                <em class="discount-badge">−37%</em><span>3 месяца</span><strong>949 ₽</strong><small>316 ₽/мес.</small>
+              </button>
+              <button class="period-option" data-action="select-period" data-plan="space" data-tariff-code="space_6m" type="button" role="radio" aria-checked="false">
+                <em class="discount-badge">−50%</em><span>6 месяцев</span><strong>1 499 ₽</strong><small>250 ₽/мес.</small>
+              </button>
             </div>
-            <span class="device-badge">До 8 устройств</span>
+            <button class="danger-button tariff-select-button plan-payment-button" data-action="create-payment" data-plan="space" data-tariff-code="space_3m" type="button">Выбрать SPACE · 3 месяца</button>
           </div>
-          <p class="tariff-description">Для семьи, 4K-видео, игр и стабильной работы в час пик.</p>
-          <ul class="tariff-benefits">
-            <li>Максимальная скорость и выделенные линии</li>
-            <li>Автовыбор лучшего сервера</li>
-          </ul>
-          <div class="period-options" role="radiogroup" aria-label="Период Virgo SPACE">
-            <button class="period-option" data-action="select-period" data-plan="space" data-tariff-code="space_1m" type="button" role="radio" aria-checked="false">
-              <span>1 месяц</span><strong>499 ₽</strong><small>499 ₽/мес.</small>
-            </button>
-            <button class="period-option selected" data-action="select-period" data-plan="space" data-tariff-code="space_3m" type="button" role="radio" aria-checked="true">
-              <span>3 месяца</span><strong>949 ₽</strong><small>316 ₽/мес. · −37%</small>
-            </button>
-            <button class="period-option" data-action="select-period" data-plan="space" data-tariff-code="space_6m" type="button" role="radio" aria-checked="false">
-              <span>6 месяцев</span><strong>1 499 ₽</strong><small>250 ₽/мес. · −50%</small>
-            </button>
-          </div>
-          <button class="danger-button tariff-select-button plan-payment-button" data-action="create-payment" data-plan="space" data-tariff-code="space_3m" type="button">Выбрать SPACE · 3 месяца</button>
-        </article>
+        </section>
         <details class="test-tariff-card">
           <summary>Тестовый тариф Lava</summary>
           <p>Технический тариф для проверки платежей. Не является публичным предложением.</p>
           <button class="secondary-button test-payment-button" data-action="create-payment" data-tariff-code="vpn_30d" type="button">Открыть тестовую оплату</button>
         </details>
-        <div class="payment-consents" id="payment-consents" aria-labelledby="payment-consents-title">
-          <div class="consent-heading">
-            <strong id="payment-consents-title">Перед оплатой</strong>
-            <span>Нужно подтвердить оба пункта</span>
-          </div>
-          <label class="consent-row" for="payment-terms">
-            <input id="payment-terms" type="checkbox">
-            <span>Принимаю <a href="https://api.virgo-vpn.site/legal/user-agreement" target="_blank" rel="noreferrer">пользовательское соглашение</a>, <a href="https://api.virgo-vpn.site/legal/privacy-policy" target="_blank" rel="noreferrer">политику конфиденциальности</a> и <a href="https://api.virgo-vpn.site/legal/refund-and-cancellation" target="_blank" rel="noreferrer">правила возврата</a>.</span>
-          </label>
-          <label class="consent-row" for="payment-recurring">
-            <input id="payment-recurring" type="checkbox">
-            <span>Принимаю <a href="https://api.virgo-vpn.site/legal/recurring-payment-consent" target="_blank" rel="noreferrer">условия автопродления</a> и регулярного списания по цене и периоду, указанным на странице Lava. Отменить подписку можно в Telegram-боте.</span>
+        <div class="payment-consents" id="payment-consents">
+          <label class="consent-row" for="payment-consent">
+            <input id="payment-consent" type="checkbox">
+            <span>Принимаю <a href="https://api.virgo-vpn.site/legal/user-agreement" target="_blank" rel="noreferrer">соглашение</a>, <a href="https://api.virgo-vpn.site/legal/privacy-policy" target="_blank" rel="noreferrer">политику конфиденциальности</a>, <a href="https://api.virgo-vpn.site/legal/recurring-payment-consent" target="_blank" rel="noreferrer">автопродление</a> и <a href="https://api.virgo-vpn.site/legal/refund-and-cancellation" target="_blank" rel="noreferrer">возврат</a>.</span>
           </label>
         </div>
       </section>

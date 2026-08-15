@@ -82,8 +82,22 @@ async function act(action, actionElement = null) {
     case "telegram":
       await openExternal(BUILD_CONFIG.telegramBotUrl);
       return;
+    case "select-plan": {
+      const selectedPlan = actionElement?.dataset.plan;
+      if (!selectedPlan) return;
+      for (const button of document.querySelectorAll(".plan-switch-button")) {
+        const selected = button.dataset.plan === selectedPlan;
+        button.classList.toggle("selected", selected);
+        button.setAttribute("aria-selected", String(selected));
+      }
+      for (const panel of document.querySelectorAll("[data-tariff-panel]")) {
+        panel.hidden = panel.dataset.tariffPanel !== selectedPlan;
+      }
+      document.querySelector("#plan-switch")?.classList.toggle("space-active", selectedPlan === "space");
+      return;
+    }
     case "select-period": {
-      const card = actionElement?.closest(".tariff-card");
+      const card = actionElement?.closest(".tariff-panel");
       const plan = actionElement?.dataset.plan;
       const tariffCode = actionElement?.dataset.tariffCode;
       if (!card || !plan || !tariffCode) return;
@@ -99,11 +113,12 @@ async function act(action, actionElement = null) {
       return;
     }
     case "create-payment": {
-      const termsAccepted = Boolean(document.querySelector("#payment-terms")?.checked);
-      const recurringConsent = Boolean(document.querySelector("#payment-recurring")?.checked);
+      const consentAccepted = Boolean(document.querySelector("#payment-consent")?.checked);
+      const termsAccepted = consentAccepted;
+      const recurringConsent = consentAccepted;
       if (!termsAccepted || !recurringConsent) {
         document.querySelector("#payment-consents")?.classList.add("attention");
-        showNotice("Поставьте галочки согласия с политикой конфиденциальности и автопродлением внизу страницы. Пролистайте вниз.");
+        showNotice("Поставьте галочку согласия с политикой конфиденциальности внизу страницы. Пролистайте вниз.");
         return;
       }
       await runBusy(async () => {
