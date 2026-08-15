@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 
@@ -8,8 +9,11 @@ import pytest
 
 from vpn_service.app import create_app
 from vpn_service.application.telegram_bot import (
+    DeviceView,
     ProfileView,
     TelegramBotService,
+    _edit_device_confirmation,
+    _edit_devices,
     _edit_faq,
     _edit_payment,
     _is_pairing_start,
@@ -66,6 +70,9 @@ def test_bot_copy_and_keyboards_follow_the_approved_scenarios(
     assert profile_keyboard(guest, settings)["inline_keyboard"][0][0]["callback_data"] == (
         "menu:tariffs"
     )
+    assert profile_keyboard(guest, settings)["inline_keyboard"][1][0]["callback_data"] == (
+        "devices:list"
+    )
     assert profile_keyboard(active, settings)["inline_keyboard"][0][0]["callback_data"] == (
         "phone:setup"
     )
@@ -114,6 +121,25 @@ def test_bot_copy_and_keyboards_follow_the_approved_scenarios(
     browser_faq = _edit_faq(123456789, 7, "browser", 123456789, settings)
     assert "вход через Telegram" in browser_faq.params["text"]
     assert "ID из профиля" not in browser_faq.params["text"]
+
+
+def test_device_management_requires_confirmation_and_uses_opaque_row_id() -> None:
+    device_id = uuid.UUID("00000000-0000-4000-8000-000000000123")
+    device = DeviceView(
+        id=device_id,
+        last_seen_at=datetime(2026, 8, 15, 10, 30, tzinfo=UTC),
+        created_at=datetime(2026, 8, 10, 10, 30, tzinfo=UTC),
+    )
+
+    listing = _edit_devices(123456789, 7, [device])
+    button = listing.params["reply_markup"]["inline_keyboard"][0][0]
+    assert "Последняя активность: 15.08.2026 10:30 UTC" in listing.params["text"]
+    assert button["callback_data"] == f"device:select:{device_id}"
+
+    confirmation = _edit_device_confirmation(123456789, 7, device)
+    confirm_button = confirmation.params["reply_markup"]["inline_keyboard"][0][0]
+    assert "Если это текущее устройство" in confirmation.params["text"]
+    assert confirm_button["callback_data"] == f"device:revoke:{device_id}"
 
 
 @pytest.mark.asyncio

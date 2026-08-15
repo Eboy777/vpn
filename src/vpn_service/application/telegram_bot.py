@@ -15,10 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from vpn_service.application.pairing import PairingService
 from vpn_service.application.payments import PaymentService
 from vpn_service.config import Settings, TariffSettings
-from vpn_service.domain.enums import OutboxStatus, PaymentStatus, UserStatus
+from vpn_service.domain.enums import DeviceStatus, OutboxStatus, PaymentStatus, UserStatus
 from vpn_service.domain.errors import ApplicationError
 from vpn_service.http.schemas import TelegramCallbackQuery, TelegramMessage, TelegramUpdateRequest
-from vpn_service.persistence.models import OutboxEvent, Payment, TelegramUpdateEvent, User
+from vpn_service.persistence.models import Device, OutboxEvent, Payment, TelegramUpdateEvent, User
 from vpn_service.security.credentials import ProxyCredentialsCipher
 
 _PAIRING_START = re.compile(r"^/start(?:@[A-Za-z0-9_]{5,32})? [A-Za-z0-9_-]{43}$")
@@ -42,6 +42,17 @@ class ProfileView:
     @property
     def has_access(self) -> bool:
         return self.expires_at is not None
+
+
+@dataclass(frozen=True, slots=True)
+class DeviceView:
+    id: uuid.UUID
+    last_seen_at: datetime | None
+    created_at: datetime
+
+    @property
+    def activity_at(self) -> datetime:
+        return self.last_seen_at or self.created_at
 
 
 class TelegramBotService:
@@ -172,6 +183,7 @@ class TelegramBotService:
         assert update.callback_query is not None
         return await self._callback_actions(
             update.callback_query,
+            session=session,
             user=user,
             profile=profile,
             now=now,
@@ -200,6 +212,7 @@ class TelegramBotService:
         self,
         callback: TelegramCallbackQuery,
         *,
+        session: AsyncSession,
         user: User,
         profile: ProfileView,
         now: datetime,
@@ -261,6 +274,21 @@ class TelegramBotService:
                     actions.append(_edit_payment_error(chat_id, message_id))
                 else:
                     actions.append(_edit_subscription_cancelled(chat_id, message_id, cancelled))
+        elif data == "devices:list":
+            devices = await self._active_devices(session, user)
+            if callback.message.text is None:
+                actions.append(_send_devices(chat_id, devices))
+            else:
+                actions.append(_edit_devices(chat_id, message_id, devices))
+        elif data.startswith("device:select:"):
+            device_id = _callback_uuid(data, "device:select:")
+            device = await self._active_device(session, user, device_id)
+            actions.append(_edit_device_confirmation(chat_id, message_id, device))
+        elif data.startswith("device:revoke:"):
+            device_id = _callback_uuid(data, "device:revoke:")
+            revoked = await self._revoke_device(session, user, device_id)
+            devices = await self._active_devices(session, user)
+            actions.append(_edit_device_revoked(chat_id, message_id, devices, revoked))
         elif data == "menu:main":
             actions.append(_send_welcome(chat_id, self._settings))
         elif data.startswith("tariff:"):
@@ -305,6 +333,66 @@ class TelegramBotService:
         else:
             actions.append(_edit_profile(chat_id, message_id, profile, self._settings))
         return actions
+
+    async def _active_devices(self, session: AsyncSession, user: User) -> list[DeviceView]:
+        rows = (
+            await session.scalars(
+                select(Device)
+                .where(
+                    Device.user_id == user.id,
+                    Device.status == DeviceStatus.ACTIVE.value,
+                )
+                .order_by(Device.last_seen_at.desc().nullslast(), Device.created_at.desc())
+            )
+        ).all()
+        return [DeviceView(row.id, row.last_seen_at, row.created_at) for row in rows]
+
+    async def _active_device(
+        self,
+        session: AsyncSession,
+        user: User,
+        device_id: uuid.UUID | None,
+    ) -> DeviceView | None:
+        if device_id is None:
+            return None
+        row = await session.scalar(
+            select(Device).where(
+                Device.id == device_id,
+                Device.user_id == user.id,
+                Device.status == DeviceStatus.ACTIVE.value,
+            )
+        )
+        if row is None:
+            return None
+        return DeviceView(row.id, row.last_seen_at, row.created_at)
+
+    async def _revoke_device(
+        self,
+        session: AsyncSession,
+        user: User,
+        device_id: uuid.UUID | None,
+    ) -> bool:
+        if device_id is None:
+            return False
+        row = await session.scalar(
+            select(Device)
+            .where(
+                Device.id == device_id,
+                Device.user_id == user.id,
+                Device.status == DeviceStatus.ACTIVE.value,
+            )
+            .with_for_update()
+        )
+        if row is None:
+            return False
+        row.status = DeviceStatus.REVOKED.value
+        row.pairing_session_token_hash = None
+        row.pairing_session_token_key_id = None
+        row.telegram_start_token_hash = None
+        row.telegram_start_token_key_id = None
+        row.pairing_expires_at = None
+        row.pairing_error_code = None
+        return True
 
     async def _profile(
         self,
@@ -444,12 +532,16 @@ def profile_text(profile: ProfileView) -> str:
 def profile_keyboard(profile: ProfileView, settings: Settings) -> dict[str, Any]:
     if not profile.has_access:
         return {
-            "inline_keyboard": [[{"text": "⚡ Купить подписку", "callback_data": "menu:tariffs"}]]
+            "inline_keyboard": [
+                [{"text": "⚡ Купить подписку", "callback_data": "menu:tariffs"}],
+                [{"text": "📱 Мои устройства", "callback_data": "devices:list"}],
+            ]
         }
     return {
         "inline_keyboard": [
             [{"text": "📱 Настроить на телефоне", "callback_data": "phone:setup"}],
             [{"text": "🌐 Настроить в браузере", "url": _chrome_url(settings)}],
+            [{"text": "📱 Мои устройства", "callback_data": "devices:list"}],
             [
                 {
                     "text": "⚙️ Управление подпиской",
@@ -458,6 +550,97 @@ def profile_keyboard(profile: ProfileView, settings: Settings) -> dict[str, Any]
             ],
         ]
     }
+
+
+def _edit_devices(
+    chat_id: int,
+    message_id: int,
+    devices: list[DeviceView],
+) -> TelegramAction:
+    if not devices:
+        return _edit(
+            chat_id,
+            message_id,
+            "📱 Мои устройства\n\nАктивных устройств нет. Привяжите расширение через Telegram.",
+            {"inline_keyboard": [[{"text": "◀️ В профиль", "callback_data": "menu:profile"}]]},
+        )
+    lines = ["📱 Мои устройства", "", f"Активно: {len(devices)}", ""]
+    rows: list[list[dict[str, str]]] = []
+    for index, device in enumerate(devices, start=1):
+        activity = device.activity_at.astimezone(UTC).strftime("%d.%m.%Y %H:%M UTC")
+        lines.append(f"{index}. Последняя активность: {activity}")
+        rows.append(
+            [
+                {
+                    "text": f"Отключить устройство {index}",
+                    "callback_data": f"device:select:{device.id}",
+                }
+            ]
+        )
+    lines.extend(["", "Отключённое устройство потеряет доступ при следующей проверке."])
+    rows.append([{"text": "◀️ В профиль", "callback_data": "menu:profile"}])
+    return _edit(chat_id, message_id, "\n".join(lines), {"inline_keyboard": rows})
+
+
+def _send_devices(chat_id: int, devices: list[DeviceView]) -> TelegramAction:
+    editable = _edit_devices(chat_id, 0, devices)
+    return _send(
+        chat_id,
+        editable.params["text"],
+        reply_markup=editable.params["reply_markup"],
+    )
+
+
+def _edit_device_confirmation(
+    chat_id: int,
+    message_id: int,
+    device: DeviceView | None,
+) -> TelegramAction:
+    if device is None:
+        return _edit(
+            chat_id,
+            message_id,
+            "Устройство уже отключено или не принадлежит вашему аккаунту.",
+            {"inline_keyboard": [[{"text": "◀️ К устройствам", "callback_data": "devices:list"}]]},
+        )
+    activity = device.activity_at.astimezone(UTC).strftime("%d.%m.%Y %H:%M UTC")
+    return _edit(
+        chat_id,
+        message_id,
+        "Отключить это устройство?\n\n"
+        f"Последняя активность: {activity}\n\n"
+        "Если это текущее устройство, VPN на нём отключится автоматически.",
+        {
+            "inline_keyboard": [
+                [
+                    {
+                        "text": "Да, отключить",
+                        "callback_data": f"device:revoke:{device.id}",
+                    }
+                ],
+                [{"text": "◀️ Отмена", "callback_data": "devices:list"}],
+            ]
+        },
+    )
+
+
+def _edit_device_revoked(
+    chat_id: int,
+    message_id: int,
+    devices: list[DeviceView],
+    revoked: bool,
+) -> TelegramAction:
+    action = _edit_devices(chat_id, message_id, devices)
+    prefix = "✅ Устройство отключено.\n\n" if revoked else "Устройство уже отключено.\n\n"
+    return TelegramAction(action.method, {**action.params, "text": prefix + action.params["text"]})
+
+
+def _callback_uuid(data: str, prefix: str) -> uuid.UUID | None:
+    try:
+        value = uuid.UUID(data.removeprefix(prefix))
+    except (ValueError, AttributeError):
+        return None
+    return value if str(value) == data.removeprefix(prefix) else None
 
 
 def tariff_name(code: str) -> str:

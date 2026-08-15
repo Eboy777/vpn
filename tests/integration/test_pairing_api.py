@@ -111,6 +111,29 @@ async def bind(
     )
 
 
+def callback_update(
+    update_id: int,
+    telegram_id: int,
+    callback_id: str,
+    data: str,
+) -> dict[str, object]:
+    return {
+        "update_id": update_id,
+        "callback_query": {
+            "id": callback_id,
+            "from": {"id": telegram_id, "is_bot": False, "first_name": "Test"},
+            "message": {
+                "message_id": update_id,
+                "date": 1_785_986_120,
+                "from": {"id": 999, "is_bot": True, "first_name": "Virgo"},
+                "chat": {"id": telegram_id, "type": "private"},
+                "text": "📱 Мои устройства",
+            },
+            "data": data,
+        },
+    }
+
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_first_pairing_creates_one_trial_and_rotates_device_token(
@@ -660,3 +683,102 @@ async def test_bot_start_and_callback_are_registered_and_queued_once(
         user = await session.scalar(select(User).where(User.telegram_id == telegram_id))
         assert user is not None
         assert user.trial_expires_at is not None
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_user_can_list_and_revoke_own_device_from_telegram(
+    pairing_client: tuple[httpx.AsyncClient, object, Settings],
+) -> None:
+    client, app, settings = pairing_client
+    telegram_id = uuid.uuid4().int % 8_000_000_000 + 1_000_000_000
+    update_id = uuid.uuid4().int % 1_000_000_000
+    device_id = uuid.uuid4()
+    pairing = await initialize(client, device_id)
+    paired = await bind(
+        client,
+        settings,
+        update_id=update_id,
+        telegram_id=telegram_id,
+        token=start_token(pairing),
+    )
+    assert paired.status_code == 200
+    status = await client.get(
+        "/api/pairing/status",
+        params={"device_id": str(device_id)},
+        headers={"Authorization": f"Bearer {pairing['pairing_session_token']}"},
+    )
+    assert status.status_code == 200
+    device_token = status.json()["device_token"]
+
+    path = (
+        "/integrations/telegram/webhook/"
+        + settings.telegram_webhook_path_secret.get_secret_value()  # type: ignore[union-attr]
+    )
+    headers = {
+        "X-Telegram-Bot-Api-Secret-Token": (
+            settings.telegram_webhook_secret.get_secret_value()  # type: ignore[union-attr]
+        )
+    }
+    list_update = callback_update(update_id + 1, telegram_id, "devices-list", "devices:list")
+    list_message = list_update["callback_query"]["message"]  # type: ignore[index]
+    list_message["caption"] = list_message.pop("text")  # type: ignore[union-attr]
+    listed = await client.post(
+        path,
+        headers=headers,
+        json=list_update,
+    )
+    assert listed.status_code == 200
+
+    async with app.state.database.sessions() as session:
+        actions = (
+            await session.scalars(
+                select(OutboxEvent).where(
+                    OutboxEvent.idempotency_key.like(
+                        f"telegram:update:{update_id + 1}:action:%"
+                    )
+                )
+            )
+        ).all()
+        device_list = next(
+            event for event in actions if event.payload_json["method"] == "sendMessage"
+        )
+        select_data = device_list.payload_json["params"]["reply_markup"]["inline_keyboard"][0][0][
+            "callback_data"
+        ]
+    assert select_data.startswith("device:select:")
+
+    selected = await client.post(
+        path,
+        headers=headers,
+        json=callback_update(update_id + 2, telegram_id, "device-select", select_data),
+    )
+    assert selected.status_code == 200
+    async with app.state.database.sessions() as session:
+        actions = (
+            await session.scalars(
+                select(OutboxEvent).where(
+                    OutboxEvent.idempotency_key.like(
+                        f"telegram:update:{update_id + 2}:action:%"
+                    )
+                )
+            )
+        ).all()
+        edit = next(event for event in actions if event.payload_json["method"] == "editMessageText")
+        revoke_data = edit.payload_json["params"]["reply_markup"]["inline_keyboard"][0][0][
+            "callback_data"
+        ]
+    assert revoke_data.startswith("device:revoke:")
+
+    revoked = await client.post(
+        path,
+        headers=headers,
+        json=callback_update(update_id + 3, telegram_id, "device-revoke", revoke_data),
+    )
+    assert revoked.status_code == 200
+    denied = await client.get(
+        "/api/status",
+        headers={"Authorization": f"Bearer {device_token}"},
+    )
+    assert denied.status_code == 401
+    assert denied.json()["error"]["code"] == "DEVICE_REVOKED"
