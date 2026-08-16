@@ -381,6 +381,7 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(html.includes('id="payment-recurring"'), false);
   assert.equal(html.includes('class="plan-notification"'), true);
   assert.equal(html.includes("Увеличенный лимит скорости"), true);
+  assert.equal(html.includes("Возможность выбора страны"), true);
   assert.equal(html.includes('class="round-icon telegram-icon"'), true);
   assert.equal(script.includes('case "select-plan"'), true);
   assert.equal(script.includes('case "select-period"'), true);
