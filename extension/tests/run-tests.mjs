@@ -365,6 +365,11 @@ test("popup follows the approved copy and privacy changes", async () => {
   assert.equal(script.includes("BUILD_CONFIG.telegramSupportUrl"), true);
   assert.equal(script.includes("chrome.tabs.create({url: parsed.href})"), true);
   assert.equal(script.includes("Поставьте галочку согласия с политикой конфиденциальности"), true);
+  assert.equal(script.includes("noticeTimer = setTimeout(hideNotice, 5_000)"), true);
+  assert.equal(script.includes("if (viewModel.lastError) showNotice(viewModel.lastError)"), false);
+  assert.equal(script.includes("highlightPaymentConsent()"), true);
+  assert.equal(script.includes("showVpnUnavailableAfterAction()"), true);
+  assert.equal(css.includes("@keyframes consent-checkbox-glow"), true);
   assert.equal(script.includes('send("ACCEPT_LEGAL", {version: "2026-08-15"})'), true);
   assert.equal(script.includes('send("START_PAIRING")'), true);
   assert.equal(html.includes('class="consent-row"'), true);

@@ -155,7 +155,18 @@ button { color: inherit; }
 .consent-row { display: grid; grid-template-columns: 15px minmax(0, 1fr); gap: 6px; align-items: start; cursor: pointer; }
 .payment-consents input { width: 13px; height: 13px; margin: 0; accent-color: #ff2936; cursor: pointer; }
 .payment-consents a { color: #e8e8e8; text-decoration-thickness: 1px; text-underline-offset: 2px; }
-.payment-consents.attention { color: #fff; }
+.payment-consents.attention { color: #fff; animation: consent-glow 1.55s ease-out; }
+.payment-consents.attention input { animation: consent-checkbox-glow 1.55s ease-out; }
+@keyframes consent-glow {
+  0%, 100% { text-shadow: none; }
+  25% { text-shadow: 0 0 7px rgba(255,255,255,.48); }
+  60% { text-shadow: 0 0 3px rgba(255,255,255,.22); }
+}
+@keyframes consent-checkbox-glow {
+  0%, 100% { filter: none; }
+  25% { filter: drop-shadow(0 0 5px rgba(255,52,61,.95)); }
+  60% { filter: drop-shadow(0 0 2px rgba(255,52,61,.5)); }
+}
 
 .payment-email-dialog { width: 330px; padding: 0; border: 1px solid rgba(255,255,255,.45); border-radius: 20px; background: #202020; color: #fff; box-shadow: 0 20px 55px rgba(0,0,0,.65); }
 .payment-email-dialog::backdrop { background: rgba(0,0,0,.72); backdrop-filter: blur(2px); }

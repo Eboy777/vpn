@@ -11,6 +11,8 @@ let viewModel = null;
 let currentScreen = "dashboard";
 let pairingTimer = null;
 let clockTimer = null;
+let noticeTimer = null;
+let consentAttentionTimer = null;
 let busy = false;
 let availableNodes = null;
 let paymentEmail = "";
@@ -57,7 +59,7 @@ async function initialize() {
     }
     render();
   } catch (error) {
-    showNotice(error.message || "Не удалось запустить расширение.");
+    console.warn(error.message || "Не удалось запустить расширение.");
   }
 }
 
@@ -135,7 +137,7 @@ async function act(action, actionElement = null) {
       const termsAccepted = consentAccepted;
       const recurringConsent = consentAccepted;
       if (!termsAccepted || !recurringConsent) {
-        document.querySelector("#payment-consents")?.classList.add("attention");
+        highlightPaymentConsent();
         showNotice("Поставьте галочку согласия с политикой конфиденциальности внизу страницы. Пролистайте вниз.");
         return;
       }
@@ -169,6 +171,7 @@ async function act(action, actionElement = null) {
       await runBusy(async () => {
         viewModel = await send("SET_VPN", {enabled: !viewModel.vpnEnabled});
         render();
+        showVpnUnavailableAfterAction();
       });
       return;
     case "logout":
@@ -230,7 +233,6 @@ function render() {
   for (const element of screens) element.hidden = element.dataset.screen !== screen;
 
   hideNotice();
-  if (viewModel.lastError) showNotice(viewModel.lastError);
   if (screen === "pairing") renderPairing();
   if (screen === "dashboard") renderDashboard();
   if (screen === "locations") renderLocations();
@@ -251,7 +253,6 @@ function renderPairing() {
   renderTelegramQr(document.querySelector("#telegram-qr"), pairing.telegramUrl);
   const remaining = Date.parse(pairing.expiresAt) - Date.now();
   if (remaining <= 0) {
-    showNotice("Ссылка истекла. Создайте новую.");
     return;
   }
   pairingTimer = setTimeout(async () => {
@@ -259,7 +260,7 @@ function renderPairing() {
       viewModel = await send("POLL_PAIRING");
       render();
     } catch (error) {
-      showNotice(error.message || "Не удалось проверить вход.");
+      console.warn(error.message || "Не удалось проверить вход.");
       pairingTimer = setTimeout(() => renderPairing(), Math.max(2, pairing.pollAfterSeconds) * 1000);
     }
   }, Math.max(2, pairing.pollAfterSeconds) * 1000);
@@ -296,15 +297,6 @@ function renderDashboard() {
     button.title = serverTitle;
     button.setAttribute("aria-label", serverTitle);
   }
-  if (!viewModel.lastError && status?.vpn?.unavailable_reason) {
-    const messages = {
-      ACCESS_EXPIRED: "Доступ закончился. Продлите подписку.",
-      USER_BLOCKED: "Доступ к аккаунту заблокирован.",
-      NO_ACTIVE_NODE: "Ищем доступный VPN-сервер. Можно оставить ожидание включённым.",
-    };
-    showNotice(messages[status.vpn.unavailable_reason] || "VPN временно недоступен.");
-  }
-
   const accessState = status?.access?.state;
   document.querySelector("#access-title").textContent = {
     trial: "Пробный период",
@@ -485,11 +477,36 @@ function setButtonsDisabled(disabled) {
 }
 
 function showNotice(message) {
+  clearTimeout(noticeTimer);
   notice.textContent = message;
   notice.hidden = false;
+  noticeTimer = setTimeout(hideNotice, 5_000);
 }
 
 function hideNotice() {
+  clearTimeout(noticeTimer);
+  noticeTimer = null;
   notice.hidden = true;
   notice.textContent = "";
+}
+
+function highlightPaymentConsent() {
+  const container = document.querySelector("#payment-consents");
+  if (!container) return;
+  clearTimeout(consentAttentionTimer);
+  container.classList.remove("attention");
+  void container.offsetWidth;
+  container.classList.add("attention");
+  consentAttentionTimer = setTimeout(() => container.classList.remove("attention"), 1_600);
+}
+
+function showVpnUnavailableAfterAction() {
+  const reason = viewModel.lastError || viewModel.status?.vpn?.unavailable_reason;
+  if (!reason) return;
+  const messages = {
+    ACCESS_EXPIRED: "Доступ закончился. Продлите подписку.",
+    USER_BLOCKED: "Доступ к аккаунту заблокирован.",
+    NO_ACTIVE_NODE: "Ищем доступный VPN-сервер. Можно оставить ожидание включённым.",
+  };
+  showNotice(messages[reason] || reason || "VPN временно недоступен.");
 }
