@@ -418,8 +418,23 @@ function previewResponse(type, payload) {
     nodes: [
       {id: "00000000-0000-4000-8000-000000000001", name: "NL-1", country_code: "NL", selected: true},
       {id: "00000000-0000-4000-8000-000000000002", name: "DE-1", country_code: "DE", selected: false},
+      {id: "00000000-0000-4000-8000-000000000003", name: "FI-1", country_code: "FI", selected: false},
+      {id: "00000000-0000-4000-8000-000000000004", name: "PL-1", country_code: "PL", selected: false},
+      {id: "00000000-0000-4000-8000-000000000005", name: "US-1", country_code: "US", selected: false},
     ],
   };
+  if (type === "SELECT_NODE") {
+    const nodes = {
+      "00000000-0000-4000-8000-000000000001": {name: "NL-1", country_code: "NL"},
+      "00000000-0000-4000-8000-000000000002": {name: "DE-1", country_code: "DE"},
+      "00000000-0000-4000-8000-000000000003": {name: "FI-1", country_code: "FI"},
+      "00000000-0000-4000-8000-000000000004": {name: "PL-1", country_code: "PL"},
+      "00000000-0000-4000-8000-000000000005": {name: "US-1", country_code: "US"},
+    };
+    const model = previewModel("locations");
+    model.status.vpn.node = nodes[payload.nodeId] || {name: "Автоматически", country_code: null};
+    return model;
+  }
   if (type === "CREATE_PAYMENT") return {
     payment_url: "https://app.lava.top/preview-payment",
   };

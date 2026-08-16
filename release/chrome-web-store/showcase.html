@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Virgo VPN — Chrome Web Store</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 1280px; height: 800px; overflow: hidden; }
+    body { color: #fff; font-family: Arial, sans-serif; background: radial-gradient(circle at 15% 20%, #353535, transparent 36%), linear-gradient(135deg,#0b0b0b,#222); }
+    .canvas { display: flex; width: 1280px; height: 800px; align-items: center; justify-content: space-between; padding: 52px 108px; }
+    .copy { width: 570px; }
+    .brand { display: flex; align-items: center; gap: 18px; margin-bottom: 54px; font-size: 30px; font-weight: 800; }
+    .brand img { width: 64px; height: 64px; }
+    h1 { margin: 0 0 22px; font-size: 58px; line-height: 1.04; letter-spacing: -2px; }
+    p { margin: 0; max-width: 520px; color: #d0d0d0; font-size: 24px; line-height: 1.38; }
+    .frame { width: 410px; height: 620px; padding: 10px; border: 1px solid #777; background: #090909; box-shadow: 0 30px 80px rgba(0,0,0,.65),0 0 30px rgba(255,255,255,.08); }
+    iframe { display: block; width: 390px; height: 600px; border: 0; background: #222; }
+    body.promo, body.promo .canvas { width: 440px; height: 280px; }
+    body.promo .canvas { padding: 34px; justify-content: flex-start; background: radial-gradient(circle at 18% 25%,#414141,transparent 45%),linear-gradient(135deg,#0b0b0b,#252525); }
+    body.promo .copy { width: 100%; }
+    body.promo .brand { margin: 0 0 24px; font-size: 34px; }
+    body.promo .brand img { width: 72px; height: 72px; }
+    body.promo h1 { margin: 0; font-size: 28px; letter-spacing: -.5px; }
+    body.promo p, body.promo .frame { display: none; }
+  </style>
+</head>
+<body>
+  <main class="canvas">
+    <section class="copy">
+      <div class="brand"><img src="../../extension/assets/virgo-logo.png" alt="">Virgo VPN</div>
+      <h1 id="headline"></h1>
+      <p id="description"></p>
+    </section>
+    <div class="frame"><iframe id="preview" title="Интерфейс Virgo VPN"></iframe></div>
+  </main>
+  <script>
+    const screen = new URLSearchParams(location.search).get('screen') || 'main';
+    const content = {
+      main: ['Защищённое подключение — в один клик', 'Подключайтесь к доступному серверу и управляйте защитой прямо в браузере.'],
+      tariffs: ['Выберите подходящий тариф', 'Понятные сроки доступа, количество устройств и возможности каждого плана.'],
+      locations: ['Выберите доступный сервер', 'Автоматический режим или конкретная нода при активной подписке.'],
+      promo: ['Защищённое подключение браузера', '']
+    }[screen];
+    document.querySelector('#headline').textContent = content[0];
+    document.querySelector('#description').textContent = content[1];
+    if (screen === 'promo') {
+      document.documentElement.style.width = '440px';
+      document.documentElement.style.height = '280px';
+      document.body.className = 'promo';
+    }
+    else document.querySelector('#preview').src = `../../extension/popup.html?preview=${screen}`;
+  </script>
+</body>
+</html>
