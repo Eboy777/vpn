@@ -52,6 +52,37 @@ async def test_lava_creates_invoice_without_exposing_api_key(
 
 
 @pytest.mark.asyncio
+async def test_lava_omits_email_when_checkout_must_collect_it(
+    settings_factory: Callable[..., Settings],
+) -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(
+            201,
+            json={
+                "id": "7ea82675-4ded-4133-95a7-a6efbaf165cc",
+                "status": "new",
+                "amountTotal": {"currency": "RUB", "amount": 299},
+                "paymentUrl": "https://app.lava.top/payment/test",
+            },
+        )
+
+    client = LavaClient(
+        settings_factory(lava_api_key="lava-secret"), transport=httpx.MockTransport(handler)
+    )
+    await client.create_invoice(
+        offer_id=uuid.UUID("bdac8131-ef34-488b-8b94-5da4480ecf5b"),
+        currency="RUB",
+        periodicity="MONTHLY",
+        email=None,
+    )
+
+    assert "email" not in captured["body"]
+
+
+@pytest.mark.asyncio
 async def test_lava_rejects_non_https_payment_url(
     settings_factory: Callable[..., Settings],
 ) -> None:

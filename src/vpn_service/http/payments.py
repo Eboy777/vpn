@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
 import re
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Request
 from pydantic import ValidationError
-from starlette.responses import Response
+from starlette.responses import RedirectResponse, Response
 
 from vpn_service.application.payments import PaymentService
 from vpn_service.domain.errors import ApplicationError
@@ -20,9 +22,28 @@ from vpn_service.http.schemas import (
     PaymentCreateResponse,
     SubscriptionCancelResponse,
 )
+from vpn_service.security.telegram_payment_links import TelegramPaymentLinkSigner
 
 router = APIRouter(prefix="/api/payments", tags=["payments"])
 _IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9_.:-]{16,128}$")
+
+
+@router.get("/telegram/{token}")
+async def telegram_payment(request: Request, token: str) -> Response:
+    if request.query_params:
+        raise ApplicationError(400, "INVALID_REQUEST", "Request validation failed")
+    claims = TelegramPaymentLinkSigner(request.app.state.settings).verify(
+        token,
+        now=datetime.now(UTC),
+    )
+    if claims is None:
+        raise ApplicationError(400, "INVALID_PAYMENT_LINK", "Payment link is invalid or expired")
+    result = await _service(request).create_for_telegram(
+        telegram_id=claims.telegram_id,
+        tariff_code=claims.tariff_code,
+        idempotency_key="telegram-link:" + hashlib.sha256(token.encode()).hexdigest(),
+    )
+    return RedirectResponse(result.payment_url, status_code=303, headers=no_store_headers())
 
 
 @router.post("/create", response_model=PaymentCreateResponse)

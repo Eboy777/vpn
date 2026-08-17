@@ -20,6 +20,7 @@ from vpn_service.domain.errors import ApplicationError
 from vpn_service.http.schemas import TelegramCallbackQuery, TelegramMessage, TelegramUpdateRequest
 from vpn_service.persistence.models import Device, OutboxEvent, Payment, TelegramUpdateEvent, User
 from vpn_service.security.credentials import ProxyCredentialsCipher
+from vpn_service.security.telegram_payment_links import TelegramPaymentLinkSigner
 
 _PAIRING_START = re.compile(r"^/start(?:@[A-Za-z0-9_]{5,32})? [A-Za-z0-9_-]{43}$")
 
@@ -235,9 +236,11 @@ class TelegramBotService:
             actions.append(_edit_connect_hub(chat_id, message_id, profile, self._settings))
         elif data == "menu:tariffs":
             if callback.message.text is None:
-                actions.append(_send_tariffs(chat_id, self._settings))
+                actions.append(_send_tariffs(chat_id, profile.telegram_id, now, self._settings))
             else:
-                actions.append(_edit_tariffs(chat_id, message_id, self._settings))
+                actions.append(
+                    _edit_tariffs(chat_id, message_id, profile.telegram_id, now, self._settings)
+                )
         elif data == "support:list":
             actions.append(_edit_support(chat_id, message_id, profile.telegram_id, self._settings))
         elif data == "support:faq":
@@ -291,20 +294,8 @@ class TelegramBotService:
             actions.append(_edit_device_revoked(chat_id, message_id, devices, revoked))
         elif data == "menu:main":
             actions.append(_send_welcome(chat_id, self._settings))
-        elif data.startswith("tariff:"):
-            code = data.removeprefix("tariff:")
-            actions.append(
-                _edit_payment(
-                    chat_id,
-                    message_id,
-                    code,
-                    profile,
-                    now,
-                    self._settings,
-                )
-            )
-        elif data.startswith("payment:"):
-            code = data.removeprefix("payment:")
+        elif data.startswith("tariff:") or data.startswith("payment:"):
+            code = data.split(":", 1)[1]
             offer = self._settings.lava_offers_json.get(code)
             if self._payment_service is None or offer is None:
                 actions.append(_edit_payment_placeholder(chat_id, message_id, code, self._settings))
@@ -692,7 +683,11 @@ def _tariff_price_lines(settings: Settings, plan: str) -> str:
     return "\n".join(lines)
 
 
-def tariffs_keyboard(settings: Settings) -> dict[str, Any]:
+def tariffs_keyboard(
+    settings: Settings,
+    telegram_id: int,
+    now: datetime,
+) -> dict[str, Any]:
     order = (
         "flow_1m",
         "flow_3m",
@@ -702,16 +697,19 @@ def tariffs_keyboard(settings: Settings) -> dict[str, Any]:
         "space_6m",
     )
     rows = []
+    signer = TelegramPaymentLinkSigner(settings)
+    base_url = str(settings.app_public_base_url).rstrip("/")
     for code in order:
         tariff = settings.tariffs_json.get(code)
         if tariff is None or not tariff.enabled:
             continue
         icon = "⚡️" if code.startswith("flow") else "🚀"
+        token = signer.issue(telegram_id=telegram_id, tariff_code=code, now=now)
         rows.append(
             [
                 {
                     "text": f"{icon} {tariff_name(code)} — {tariff_price(tariff)}",
-                    "callback_data": f"tariff:{code}",
+                    "url": f"{base_url}/api/payments/telegram/{token}",
                 }
             ]
         )
@@ -1010,94 +1008,31 @@ def _send_subscription_management(
     )
 
 
-def _edit_tariffs(chat_id: int, message_id: int, settings: Settings) -> TelegramAction:
-    return _edit(chat_id, message_id, tariffs_text(settings), tariffs_keyboard(settings))
-
-
-def _send_tariffs(chat_id: int, settings: Settings) -> TelegramAction:
-    return _send(chat_id, tariffs_text(settings), reply_markup=tariffs_keyboard(settings))
-
-
-def _edit_payment(
+def _edit_tariffs(
     chat_id: int,
     message_id: int,
-    code: str,
-    profile: ProfileView,
+    telegram_id: int,
     now: datetime,
     settings: Settings,
 ) -> TelegramAction:
-    tariff = settings.tariffs_json.get(code)
-    if tariff is None or not tariff.enabled:
-        return _edit(
-            chat_id,
-            message_id,
-            "Тариф недоступен.",
-            {"inline_keyboard": [[{"text": "◀️ Назад", "callback_data": "menu:tariffs"}]]},
-        )
-    offer = settings.lava_offers_json.get(code)
-    recurring = offer is not None and offer.periodicity != "ONE_TIME"
-    renewal_note = (
-        "Оплата включает автопродление с указанной периодичностью. Его можно отключить "
-        "в профиле бота; оплаченный срок при этом сохранится. Нажимая кнопку оплаты, "
-        "вы принимаете условия подписки и соглашаетесь на регулярные списания."
-        if recurring
-        else "Это разовая оплата без автоматического продления."
-    )
-    rows: list[list[dict[str, str]]] = [
-        [
-            {
-                "text": "💳 Оплатить и включить автопродление" if recurring else "💳 Оплатить",
-                "callback_data": f"payment:{code}",
-            }
-        ],
-    ]
-    if settings.legal_documents_base_url is not None:
-        rows.extend(
-            [
-                [
-                    {
-                        "text": "Пользовательское соглашение",
-                        "url": _legal_url(settings, "user-agreement"),
-                    },
-                    {
-                        "text": "Автопродление",
-                        "url": _legal_url(settings, "recurring-payment-consent"),
-                    },
-                ],
-                [
-                    {
-                        "text": "Конфиденциальность",
-                        "url": _legal_url(settings, "privacy-policy"),
-                    },
-                    {
-                        "text": "Отмена и возврат",
-                        "url": _legal_url(settings, "refund-and-cancellation"),
-                    },
-                ],
-            ]
-        )
-    rows.append([{"text": "◀️ Выбрать другой тариф", "callback_data": "menu:tariffs"}])
-    if offer is not None:
-        payment_terms = (
-            f"Вы выбрали тариф {tariff_name(code)}.\n\n"
-            "Точная цена, период подписки и дата следующего списания будут показаны "
-            "на странице оплаты Lava до подтверждения платежа.\n\n"
-        )
-    else:
-        period_start = (
-            profile.expires_at if profile.expires_at and profile.expires_at > now else now
-        )
-        period_end = period_start + timedelta(days=tariff.period_days)
-        payment_terms = (
-            f"Вы выбрали тариф {tariff_name(code)} на {tariff.period_days} дней.\n\n"
-            f"├ ‣ Период: до {period_end.astimezone(UTC).strftime('%d.%m.%Y')}\n"
-            f"└ ‣ К оплате: {tariff_price(tariff)}\n\n"
-        )
     return _edit(
         chat_id,
         message_id,
-        f"{payment_terms}{renewal_note}",
-        {"inline_keyboard": rows},
+        tariffs_text(settings),
+        tariffs_keyboard(settings, telegram_id, now),
+    )
+
+
+def _send_tariffs(
+    chat_id: int,
+    telegram_id: int,
+    now: datetime,
+    settings: Settings,
+) -> TelegramAction:
+    return _send(
+        chat_id,
+        tariffs_text(settings),
+        reply_markup=tariffs_keyboard(settings, telegram_id, now),
     )
 
 
@@ -1301,11 +1236,6 @@ def _chrome_url(settings: Settings) -> str:
 def _support_url(telegram_id: int, settings: Settings) -> str:
     username = settings.telegram_support_username or settings.telegram_bot_username or "telegram"
     return f"https://t.me/{username}?start=user_{telegram_id}"
-
-
-def _legal_url(settings: Settings, document: str) -> str:
-    assert settings.legal_documents_base_url is not None
-    return f"{str(settings.legal_documents_base_url).rstrip('/')}/{document}"
 
 
 async def _transaction_now(session: AsyncSession) -> datetime:

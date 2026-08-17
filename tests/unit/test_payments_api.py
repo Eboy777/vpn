@@ -12,6 +12,7 @@ from vpn_service.app import create_app
 from vpn_service.application.device_auth import AuthenticatedDevice
 from vpn_service.application.payments import PaymentCreateResult, WebhookResult
 from vpn_service.config import Settings
+from vpn_service.security.telegram_payment_links import TelegramPaymentLinkSigner
 
 
 async def _database_probe() -> bool:
@@ -45,6 +46,14 @@ class FakePayments:
     async def handle_webhook(self, **kwargs):
         assert kwargs["payload"].amount == Decimal("299")
         return WebhookResult("paid")
+
+    async def create_for_telegram(self, **kwargs):
+        assert kwargs["telegram_id"] == 123456789
+        assert kwargs["tariff_code"] == "flow_1m"
+        return await self.create(
+            tariff_code=kwargs["tariff_code"],
+            terms_accepted=True,
+        )
 
     async def cancel(self, **kwargs):
         assert kwargs["user_id"] == uuid.UUID("00000000-0000-4000-8000-000000000003")
@@ -85,6 +94,30 @@ async def test_create_payment_contract(payment_client: httpx.AsyncClient) -> Non
     assert response.status_code == 201
     assert response.json()["contract_id"] == "7ea82675-4ded-4133-95a7-a6efbaf165cc"
     assert response.json()["payment_url"].startswith("https://app.lava.top/")
+
+
+@pytest.mark.asyncio
+async def test_telegram_payment_link_redirects_directly_to_lava(
+    settings_factory: Callable[..., Settings],
+) -> None:
+    settings = settings_factory(lava_webhook_api_key="webhook-secret")
+    app = create_app(settings, database_probe=_database_probe)
+    app.state.payment_service = FakePayments()
+    token = TelegramPaymentLinkSigner(settings).issue(
+        telegram_id=123456789,
+        tariff_code="flow_1m",
+        now=datetime.now(UTC),
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+        follow_redirects=False,
+    ) as client:
+        response = await client.get(f"/api/payments/telegram/{token}")
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "https://app.lava.top/payment/test"
+    assert response.headers["cache-control"] == "no-store"
 
 
 @pytest.mark.asyncio

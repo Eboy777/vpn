@@ -15,7 +15,6 @@ from vpn_service.application.telegram_bot import (
     _edit_device_confirmation,
     _edit_devices,
     _edit_faq,
-    _edit_payment,
     _is_pairing_start,
     _phone_placeholder_text,
     _send_connect_hub,
@@ -87,8 +86,14 @@ def test_bot_copy_and_keyboards_follow_the_approved_scenarios(
     assert "Тестовый тариф Lava" not in tariffs_text(settings)
     assert tariff_price(settings.tariffs_json["flow_1m"]) == "299 ₽"
     assert tariff_price(settings.tariffs_json["space_6m"]) == "1 499 ₽"
-    assert len(tariffs_keyboard(settings)["inline_keyboard"]) == 7
-    assert tariffs_keyboard(settings)["inline_keyboard"][-1][0]["callback_data"] == ("menu:profile")
+    tariff_markup = tariffs_keyboard(settings, 123456789, started_at)
+    assert len(tariff_markup["inline_keyboard"]) == 7
+    assert tariff_markup["inline_keyboard"][-1][0]["callback_data"] == ("menu:profile")
+    first_tariff_button = tariff_markup["inline_keyboard"][0][0]
+    assert first_tariff_button["url"].startswith(
+        f"{str(settings.app_public_base_url).rstrip('/')}/api/payments/telegram/"
+    )
+    assert "callback_data" not in first_tariff_button
     assert welcome_text(settings).startswith("Привет! 🛰\n\nДобро пожаловать в Virgo VPN")
     assert "Служба поддержки Virgo VPN" in support_text()
     assert "VLESS" not in _phone_placeholder_text()
@@ -105,18 +110,6 @@ def test_bot_copy_and_keyboards_follow_the_approved_scenarios(
     assert connect_action.params["caption"] == (
         "У вас нет активной подписки. Подключите тариф для доступа к VPN:"
     )
-
-    payment_action = _edit_payment(
-        123456789,
-        7,
-        "flow_1m",
-        guest,
-        started_at,
-        settings,
-    )
-    assert "Virgo FLOW · 1 месяц на 30 дней" in payment_action.params["text"]
-    assert "09.09.2026" in payment_action.params["text"]
-    assert "разовая оплата без автоматического продления" in payment_action.params["text"]
 
     browser_faq = _edit_faq(123456789, 7, "browser", 123456789, settings)
     assert "вход через Telegram" in browser_faq.params["text"]

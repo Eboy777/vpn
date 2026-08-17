@@ -160,6 +160,27 @@ class PaymentService:
             await session.flush()
             return _result_from_payment(payment, replayed=False)
 
+    async def create_for_telegram(
+        self,
+        *,
+        telegram_id: int,
+        tariff_code: str,
+        idempotency_key: str,
+    ) -> PaymentCreateResult:
+        async with self._sessions() as session:
+            user_id = await session.scalar(select(User.id).where(User.telegram_id == telegram_id))
+        if user_id is None:
+            raise ApplicationError(404, "USER_NOT_FOUND", "Telegram account is not registered")
+        offer = self._settings.lava_offers_json.get(tariff_code)
+        return await self.create(
+            user_id=user_id,
+            tariff_code=tariff_code,
+            idempotency_key=idempotency_key,
+            email=None,
+            terms_accepted=True,
+            recurring_consent=offer is not None and offer.periodicity != "ONE_TIME",
+        )
+
     async def handle_webhook(
         self,
         *,
