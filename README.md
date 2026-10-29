@@ -1,4 +1,4 @@
-# VPN Control MVP
+# VPN Control 
 
 Реализация control plane браузерного VPN на FastAPI, PostgreSQL 16 и GOST HTTPS proxy.
 
